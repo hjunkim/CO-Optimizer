@@ -1,121 +1,153 @@
+#include "clang/Driver/Options.h"
+#include "clang/AST/AST.h"
+#include "clang/AST/ASTContext.h"
 #include "clang/AST/ASTConsumer.h"
 #include "clang/AST/RecursiveASTVisitor.h"
-#include "clang/Frontend/CompilerInstance.h"
-#include "clang/Frontend/FrontendAction.h"
+#include "clang/Frontend/ASTConsumers.h"
 #include "clang/Frontend/FrontendActions.h"
-#include "clang/Tooling/Tooling.h"
-
+#include "clang/Frontend/CompilerInstance.h"
 #include "clang/Tooling/CommonOptionsParser.h"
-#include "clang/ASTMatchers/ASTMatchers.h"
-#include "clang/ASTMatchers/ASTMatchFinder.h"
-
+#include "clang/Tooling/Tooling.h"
 #include "clang/Rewrite/Core/Rewriter.h"
 
+using namespace std;
 using namespace llvm;
-using namespace clang;
-using namespace clang::tooling;
-using namespace clang::ast_matchers;
 
-static cl::OptionCategory MyToolCategory("transpiler options");
-static cl::extrahelp CommonHelp(CommonOptionsParser::HelpMessage);
-static cl::extrahelp MoreHelp("\nMore help text...\n");
+clang::Rewriter rewriter;
+int numFunctions = 0;
 
-class LiteralArgCommenter : public MatchFinder::MatchCallback {
+
+class ExampleVisitor : public clang::RecursiveASTVisitor<ExampleVisitor>
+{
+private:
+    clang::ASTContext* ast_context_; // used for getting additional AST info
+
 public:
-    LiteralArgCommenter(Rewriter &MyRewriter) : MyRewriter(MyRewriter) {}
+    explicit ExampleVisitor(clang::CompilerInstance* ci) 
+      : ast_context_(&(ci->getASTContext())) // initialize private members
+    {
+        rewriter.setSourceMgr(ast_context_->getSourceManager(),
+                ast_context_->getLangOpts());
+    }
 
-    // This callback will be executed whenever the Matcher in MyASTConsumer matches
-    virtual void run(const MatchFinder::MatchResult &Result) {
-        // ASTContext allows us to find the source location
-        ASTContext *Context = Result.Context;
-        // Record the callees params. We can access the callee via the .bind("callee")
-        // from the ASTMatcher. We will match these with the callers arg. later.
-        std::vector<ParmVarDecl *> Params;
-        const FunctionDecl *CD =
-            Result.Nodes.getNodeAs<clang::FunctionDecl>("callee");
-        for (FunctionDecl::param_const_iterator PI = CD->param_begin(),
-                                                PE = CD->param_end();
-                                                PI != PE; ++PI) {
-            Params.push_back(*PI);
+    virtual bool VisitFunctionDecl(clang::FunctionDecl* func)
+    {
+        numFunctions++;
+
+        string funcName = func->getNameInfo().getName().getAsString();
+        if (funcName == "do_math")
+        {
+            rewriter.ReplaceText(func->getLocation(), funcName.length(),"add5");
+            errs() << "** Rewrote function def: " << funcName << "\n";
+        }    
+        return true;
+    }
+
+    virtual bool VisitStmt(clang::Stmt* st)
+    {
+        if (clang::ReturnStmt *ret = dyn_cast<clang::ReturnStmt>(st))
+        {
+            // rewriter.ReplaceText(ret->getRetValue()->getLocStart(), 6, "val");
+            rewriter.ReplaceText(ret->getRetValue()->getBeginLoc(), 6, "val");
+            errs() << "** Rewrote ReturnStmt\n";
+        }        
+        if (clang::CallExpr* call = dyn_cast<clang::CallExpr>(st))
+        {
+            // rewriter.ReplaceText(call->getLocStart(), 7, "add5");
+            rewriter.ReplaceText(call->getBeginLoc(), 7, "add5");
+            errs() << "** Rewrote function call\n";
         }
+        return true;
+    }
 
-        const CallExpr *E = Result.Nodes.getNodeAs<clang::CallExpr>("functions");
-        size_t Count = 0;
+/*
+    virtual bool VisitReturnStmt(clang::ReturnStmt* ret) {
+        rewriter.ReplaceText(ret->getRetValue()->getLocStart(), 6, "val");
+        errs() << "** Rewrote ReturnStmt\n";
+        return true;
+    }
 
-        if (E && CD && !Params.empty()) {
-            auto I = E->arg_begin();
-            // The first param is the object itself, skip over it
-            if (isa<CXXOperatorCallExpr>(E))
-                ++I;
-            
-            // For each arg. match it with the callee param. If it is an int. or bool. literal
-            // then, insert a comment into the edit buffer.
-            for (auto End = E->arg_end(); I != End; ++I, ++Count) {
-                ParmVarDecl *PD = Params[Count];
-                FullSourceLoc ParmLocation = Context->getFullLoc(PD->getBeginLoc());
-                const Expr *AE = (*I)->IgnoreParenCasts();
-                if (auto *IntArg = dyn_cast<IntegerLiteral>(AE)) {
-                    FullSourceLoc ArgLoc = Context->getFullLoc(IntArg->getBeginLoc());
-                    if (ParmLocation.isValid() && !PD->getDeclName().isEmpty()) // &&
-                        // ToDo: Fix --> EditedLocations.insert(ArgLoc).second)
-                        // Will insert text immediately before the argument
-                        MyRewriter.InsertText(
-                            ArgLoc,
-                            (Twine(" /* ") + PD->getDeclName().getAsString() + " */ ").str());
-                }
-            }
+    virtual bool VisitCallExpr(clang::CallExpr* call) {
+        rewriter.ReplaceText(call->getLocStart(), 7, "add5");
+        errs() << "** Rewrote function call\n";
+        return true;
+    }
+*/
+};
+
+
+class ExampleASTConsumer : public clang::ASTConsumer
+{
+private:
+    ExampleVisitor* visitor_; // doesn't have to be private
+
+public:
+    // override the constructor in order to pass CI
+    explicit ExampleASTConsumer(clang::CompilerInstance* ci)
+        : visitor_(new ExampleVisitor(ci)) // initialize the visitor_
+    {
+    }
+
+    // override this to call our ExampleVisitor on the entire source file
+    virtual void HandleTranslationUnit(clang::ASTContext& context)
+    {
+        /**
+         * we can use ASTContext to get the TranslationUnitDecl, which is
+           a single Decl that collectively represents the entire source file 
+         */
+
+        visitor_->TraverseDecl(context.getTranslationUnitDecl());
+    }
+
+    /*
+    // override this to call our ExampleVisitor on each top-level Decl
+    virtual bool HandleTopLevelDecl(clang::DeclGroupRef DG)
+    {
+        // a DeclGroupRef may have multiple Decls, so we iterate through each one
+        for (clang::DeclGroupRef::iterator i = DG.begin(), e = DG.end();
+             i != e; i++)
+        {
+            Decl *D = *i;    
+            visitor_->TraverseDecl(D); // recursively visit each AST node
+                                      // in Decl "D"
         }
+        return true;
     }
-private:
-    Rewriter MyRewriter;
-
+    */
 };
 
-class MyASTConsumer : public ASTConsumer {
+class ExampleFrontendAction : public clang::ASTFrontendAction
+{
 public:
-// Use almost the same syntax as the ASTMatcher prototyped in clang-query.
-// The changes are the .bind(string) additions so that we can access these once the match has occurred.
-    MyASTConsumer(Rewriter &R) : LAC(R) {
-        StatementMatcher CallSiteMatcher =
-            CallExpr(allOf(callee(functionDecl(unless(isVariadic())).bind("callee")),
-                    unless(cxxMemberCallExpr(
-                        on(hasType(substTemplateTypeParmType())))),
-                    anyOf(hasAnyArgument(ignoringParenCasts(cxxBoolLiteral())),
-                        hasAnyArgument(ignoringParenCasts(integerLiteral())))
-                    )
-                )
-                .bind("functions");
-        // LAC is our callback that will run when the ASTMatcher finds the pattern above
-        Matcher.addMatcher(CallSiteMatcher, &LAC);
+    // virtual clang::ASTConsumer* CreateASTConsumer(clang::CompilerInstance& ci,
+    virtual std::unique_ptr<clang::ASTConsumer> CreateASTConsumer(clang::CompilerInstance& ci,
+                                                  llvm::StringRef file)
+    {
+        return std::make_unique<ExampleASTConsumer>(&ci); // pass CI pointer to ASTConsumer
+        //return new ExampleASTConsumer(&ci); // pass CI pointer to ASTConsumer
     }
-    // Implement the call back so that we can run our Matcher on the source file
-    void HandleTranslationUnit(ASTContext &Context) override {
-        Matcher.matchAST(Context);
-    }
-private:
-    MatchFinder Matcher;
-    LiteralArgCommenter LAC;
 };
 
-class MyFrontendAction : public ASTFrontendAction {
-public:
-    // Output the edit buffer for this translation unit
-    void EndSourceFileAction() override {
-        MyRewriter.getEditBuffer(MyRewriter.getSourceMgr().getMainFileID()).write(llvm::outs());
-    }
-    // Returns our ASTConsumer implemenation per translation unit
-    std::unique_ptr<ASTConsumer> CreateASTConsumer(CompilerInstance &CI, StringRef file) override {
-        MyRewriter.setSourceMgr(CI.getSourceManager(), CI.getLangOpts());
-        // llvm::make_unique --> std::make_unique
-        return std::make_unique<MyASTConsumer>(MyRewriter);
-    }
-private:
-    Rewriter MyRewriter;
-};
 
-int main(int argc, const char **argv) {
-    CommonOptionsParser OptionsParser(argc, argv, MyToolCategory);
-    ClangTool Tool(OptionsParser.getCompilations(),
-        OptionsParser.getSourcePathList());
-    return Tool.run(newFrontendActionFactory<MyFrontendAction>().get());
+int main(int argc, const char **argv)
+{
+    // parse the command-line args passed to your code
+    cl::OptionCategory my_tool_category("my tool option");
+    clang::tooling::CommonOptionsParser op(argc, argv, my_tool_category);
+    
+    // create a new Clang Tool instance (a LibTooling environment)
+    clang::tooling::ClangTool tool(op.getCompilations(),op.getSourcePathList());
+
+    // run the Clang Tool, creating a new FrontendAction (explained below)
+    int result = tool.run(
+        clang::tooling::newFrontendActionFactory<ExampleFrontendAction>().get()
+    );
+
+    errs() << "\nFound " << numFunctions << " functions.\n\n";
+
+    // print out the rewritten source code ("rewriter" is a global var.)
+    rewriter.getEditBuffer(
+        rewriter.getSourceMgr().getMainFileID()).write(errs());
+
+    return result;
 }
