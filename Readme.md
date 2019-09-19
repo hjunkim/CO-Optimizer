@@ -25,6 +25,24 @@ $ git clone github.com/hjunkim/transpiler
 #... downloading transpiler for CUDA
 ```
 
+Then, building the llvm, clang, and transpiler
+
+```bash
+$ cd ~
+$ mkdir llvm-build
+$ cd llvm-build
+$ cmake -G "Unix Makefiles" ../llvm
+$ make -j 16
+$ sudo make install
+```
+
+### Machine
+
+```bash
+# Ubuntu 18.04
+$ sudo apt-get install build-essential gcc-5 g++-5 cmake
+```
+
 ## Run
 - '--' 이후 flag/option들을 정의
 - --cuda-device-only: CUDA 프로그램의 host/device 코드들 중 device (cuda kernel function) 만을 대상으로 수행한다고 명시
