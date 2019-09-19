@@ -44,11 +44,12 @@ $ sudo apt-get install build-essential gcc-5 g++-5 cmake
 ```
 
 ## Run
-- '--' 이후 flag/option들을 정의
-- --cuda-device-only: CUDA 프로그램의 host/device 코드들 중 device (cuda kernel function) 만을 대상으로 수행한다고 명시
-- --cuda-path=/usr/local/cuda: CUDA 설치 path
-- --cuda-gpu-arch=sm\_xx: CUDA architecture에 맞게 작성 (Titan V, V100: sm\_70)
 
 ```bash
 $ transpiler cuda_program.cu -- --cuda-device-only --cuda-path=/usr/local/cuda --cuda-gpu-arch=sm_xx
 ```
+
+- '--' 이후 flag/option들을 정의
+- --cuda-device-only: CUDA 프로그램의 host/device 코드들 중 device (cuda kernel function) 만을 대상으로 수행한다고 명시
+- --cuda-path=/usr/local/cuda: CUDA 설치 path
+- --cuda-gpu-arch=sm\_xx: CUDA architecture에 맞게 작성 (Titan V, V100: sm\_70)
