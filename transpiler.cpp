@@ -112,10 +112,11 @@ public:
     TheRewriter.getEditBuffer(TheRewriter.getSourceMgr().getMainFileID()).write(llvm::outs());
   }
 
-  std::unique_ptr<ASTConsumer> CreateASTConsumer(CompilerInstance &CI,
-                                                 StringRef file) override {
+  std::unique_ptr<ASTConsumer> CreateASTConsumer(CompilerInstance &CI, 
+		  				StringRef file) override {
     TheRewriter.setSourceMgr(CI.getSourceManager(), CI.getLangOpts());
-    return std::make_unique<MyASTConsumer>(TheRewriter);
+    return llvm::make_unique<MyASTConsumer>(TheRewriter);
+    // c++14 feature, return std::make_unique<MyASTConsumer>(TheRewriter);
   }
 
 private:
