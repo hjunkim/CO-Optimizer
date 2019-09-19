@@ -1,5 +1,5 @@
 # Transpiler
-Clang tool-based (ASTMatcher, Rewriter) source-to-source transpiler.
+Clang tool-based (ASTMatcher, Rewriter) source-to-source transpiler for CUDA.
 
 ## Build
 
@@ -32,14 +32,14 @@ $ cd ~
 $ mkdir llvm-build
 $ cd llvm-build
 $ cmake -G "Unix Makefiles" ../llvm
-$ make -j 16
+$ make -j N
 $ sudo make install
 ```
 
-### Machine
+### Tested on Machine with following settings
 
 ```bash
-# Ubuntu 18.04
+# Ubuntu 18.04, gcc/g++ 5.5 is used
 $ sudo apt-get install build-essential gcc-5 g++-5 cmake
 ```
 
