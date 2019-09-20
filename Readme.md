@@ -36,7 +36,7 @@ $ make -j N
 $ sudo make install
 ```
 
-### Tested on Machine with following settings
+### Tested on Machines with following settings
 
 ```bash
 # Ubuntu 18.04, gcc/g++ 5.5 is used
