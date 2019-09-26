@@ -62,6 +62,19 @@ private:
   Rewriter &Rewrite;
 };
 
+class ForStmtHandler : public MatchFinder::MatchCallback {
+public:
+  ForStmtHandler(Rewriter &Rewrite) : Rewrite(Rewrite) {}
+
+  virtual void run(const MatchFinder::MatchResult &Result) {
+    const ArraySubscriptExpr *ArrayVar = Result.Nodes.getNodeAs<ArraySubscriptExpr>("arrayIndex");
+    Rewrite.InsertText(ArrayVar->getBeginLoc(), "/* Hello world */", true, true);
+  }
+
+private:
+  Rewriter &Rewrite;
+};
+
 // Implementation of the ASTConsumer interface for reading an AST produced
 // by the Clang parser. It registers a couple of matchers and runs them on
 // the AST.
@@ -90,6 +103,10 @@ public:
                     hasRHS(expr(hasType(isInteger()))))))
             .bind("forLoop"),
         &HandlerForFor);
+
+    Matcher.addMatcher(
+        forStmt(hasBody(arraySubscriptExpr(implicitCastExpr)).bind("arrayIndex"));
+    )
   }
 
   void HandleTranslationUnit(ASTContext &Context) override {
@@ -100,6 +117,9 @@ public:
 private:
   IfStmtHandler HandlerForIf;
   IncrementForLoopHandler HandlerForFor;
+  // added Matcher by hjkim
+  ForStmtHandler HandlerForTT;
+
   MatchFinder Matcher;
 };
 
