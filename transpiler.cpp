@@ -26,6 +26,8 @@ using namespace clang::ast_matchers;
 using namespace clang::driver;
 using namespace clang::tooling;
 
+int iterator_id=0;
+
 static llvm::cl::OptionCategory MatcherSampleCategory("Matcher Sample");
 
 class IfStmtHandler : public MatchFinder::MatchCallback {
@@ -36,10 +38,10 @@ public:
     // The matched 'if' statement was bound to 'ifStmt'.
     if (const IfStmt *IfS = Result.Nodes.getNodeAs<clang::IfStmt>("ifStmt")) {
       const Stmt *Then = IfS->getThen();
-      Rewrite.InsertText(Then->getBeginLoc(), "// the 'if' part\n", true, true);
+      Rewrite.InsertText(Then->getBeginLoc(), "// the hello 'if' part\n", true, true);
 
       if (const Stmt *Else = IfS->getElse()) {
-        Rewrite.InsertText(Else->getBeginLoc(), "// the 'else' part\n", true,
+        Rewrite.InsertText(Else->getBeginLoc(), "// the hello 'else' part\n", true,
                            true);
       }
     }
@@ -67,8 +69,14 @@ public:
   ForStmtHandler(Rewriter &Rewrite) : Rewrite(Rewrite) {}
 
   virtual void run(const MatchFinder::MatchResult &Result) {
-    const ArraySubscriptExpr *ArrayVar = Result.Nodes.getNodeAs<ArraySubscriptExpr>("arrayIndex");
-    Rewrite.InsertText(ArrayVar->getBeginLoc(), "/* Hello world */", true, true);
+    if (const ForStmt *ForLoop = Result.Nodes.getNodeAs<ForStmt>("forLoop")) {
+    // 	const ArraySubscriptExpr *ArrayVar = Result.Nodes.getNodeAs<ArraySubscriptExpr>("arrayIndex");
+    	Rewrite.InsertText(ForLoop->getBeginLoc(), "/* Hello for-loop */"+std::to_string(iterator_id++), true, true);
+	}
+   	if (const ArraySubscriptExpr *ArrayVar = Result.Nodes.getNodeAs<ArraySubscriptExpr>("array")) {
+    	Rewrite.InsertText(ArrayVar->getBeginLoc(), "/* Hello array */"+std::to_string(iterator_id), true, true);
+
+	}
   }
 
 private:
@@ -80,7 +88,7 @@ private:
 // the AST.
 class MyASTConsumer : public ASTConsumer {
 public:
-  MyASTConsumer(Rewriter &R) : HandlerForIf(R), HandlerForFor(R) {
+  MyASTConsumer(Rewriter &R) : HandlerForIf(R), HandlerForFor(R), HandlerForTT(R) {
     // Add a simple matcher for finding 'if' statements.
     Matcher.addMatcher(ifStmt().bind("ifStmt"), &HandlerForIf);
 
@@ -101,12 +109,17 @@ public:
                     hasLHS(ignoringParenImpCasts(declRefExpr(to(
                         varDecl(hasType(isInteger())).bind("condVarName"))))),
                     hasRHS(expr(hasType(isInteger()))))))
-            .bind("forLoop"),
+            .bind("forLoopp"),
         &HandlerForFor);
 
+	// find a for loop that exceeds L1 footprints, then send it to the handler above
     Matcher.addMatcher(
-        forStmt(hasBody(arraySubscriptExpr(implicitCastExpr)).bind("arrayIndex"));
-    )
+		// functionDecl(hasDescendant(CUDAGlobalAttr())),
+        forStmt(hasDescendant(arraySubscriptExpr())).bind("forLoop"),
+			&HandlerForTT);
+    Matcher.addMatcher(
+		arraySubscriptExpr(hasAncestor(forStmt())).bind("array"),
+			&HandlerForTT);
   }
 
   void HandleTranslationUnit(ASTContext &Context) override {
