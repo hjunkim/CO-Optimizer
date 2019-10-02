@@ -9,6 +9,7 @@
 // This code is in the public domain
 //------------------------------------------------------------------------------
 #include <string>
+#include <iostream>
 
 #include "clang/AST/AST.h"
 #include "clang/AST/ASTConsumer.h"
@@ -26,61 +27,53 @@ using namespace clang::ast_matchers;
 using namespace clang::driver;
 using namespace clang::tooling;
 
-int iterator_id=0;
+int footprints = 0;
 
 static llvm::cl::OptionCategory MatcherSampleCategory("Matcher Sample");
-
-class IfStmtHandler : public MatchFinder::MatchCallback {
-public:
-  IfStmtHandler(Rewriter &Rewrite) : Rewrite(Rewrite) {}
-
-  virtual void run(const MatchFinder::MatchResult &Result) {
-    // The matched 'if' statement was bound to 'ifStmt'.
-    if (const IfStmt *IfS = Result.Nodes.getNodeAs<clang::IfStmt>("ifStmt")) {
-      const Stmt *Then = IfS->getThen();
-      Rewrite.InsertText(Then->getBeginLoc(), "// the hello 'if' part\n", true, true);
-
-      if (const Stmt *Else = IfS->getElse()) {
-        Rewrite.InsertText(Else->getBeginLoc(), "// the hello 'else' part\n", true,
-                           true);
-      }
-    }
-  }
-
-private:
-  Rewriter &Rewrite;
-};
-
-class IncrementForLoopHandler : public MatchFinder::MatchCallback {
-public:
-  IncrementForLoopHandler(Rewriter &Rewrite) : Rewrite(Rewrite) {}
-
-  virtual void run(const MatchFinder::MatchResult &Result) {
-    const VarDecl *IncVar = Result.Nodes.getNodeAs<VarDecl>("incVarName");
-    Rewrite.InsertText(IncVar->getBeginLoc(), "/* increment */", true, true);
-  }
-
-private:
-  Rewriter &Rewrite;
-};
 
 class ForStmtHandler : public MatchFinder::MatchCallback {
 public:
   ForStmtHandler(Rewriter &Rewrite) : Rewrite(Rewrite) {}
 
   virtual void run(const MatchFinder::MatchResult &Result) {
-    if (const ForStmt *ForLoop = Result.Nodes.getNodeAs<ForStmt>("forLoop")) {
-    // 	const ArraySubscriptExpr *ArrayVar = Result.Nodes.getNodeAs<ArraySubscriptExpr>("arrayIndex");
-    	Rewrite.InsertText(ForLoop->getBeginLoc(), "/* Hello for-loop */"+std::to_string(iterator_id++), true, true);
-	}
-   	if (const ArraySubscriptExpr *ArrayVar = Result.Nodes.getNodeAs<ArraySubscriptExpr>("array")) {
-    	Rewrite.InsertText(ArrayVar->getBeginLoc(), "/* Hello array */"+std::to_string(iterator_id), true, true);
+	// visit ForStmt
+	// t_ForLoop = newly visited ForStmt, ForLoop = prev. visited ForStmt
+    if (const ForStmt *t_ForLoop = Result.Nodes.getNodeAs<ForStmt>("forLoop")) {
+		// cache size --> cmdline parameter?
+		if (footprints > 256) {
+			// cache contention --> rewrite ForStmt
+			Rewrite.InsertText(ForLoop->getBeginLoc(), "/* throttling start */", true, true);
+			Rewrite.InsertText(ForLoop->getEndLoc(), "/* throttling end */", true, true);
+		} 
 
+		// move to next ForStmt
+		ForLoop = const_cast<ForStmt*>(t_ForLoop);
+		footprints = 0;
+		
+	}
+
+	// visit Iterator variable
+   	if (const DeclRefExpr *t_iterVar = Result.Nodes.getNodeAs<DeclRefExpr>("iterVar")) {
+			std::cout << t_iterVar->getNameInfo().getAsString() << std::endl;
+	}
+
+	// visit Array
+   	if (const ArraySubscriptExpr *ArrayVar = Result.Nodes.getNodeAs<ArraySubscriptExpr>("array")) {
+    	// Rewrite.InsertText(ArrayVar->getBeginLoc(), "-", true, true);
+		// ArrayVar->getIdx()->dump();
+		// temp footprints variable
+		int t_ftp = 0;
+
+		footprints += t_ftp;
 	}
   }
 
 private:
   Rewriter &Rewrite;
+  ForStmt *ForLoop;
+  
+  //DeclRefExpr *iterVar;
+  std::string iterVarName;
 };
 
 // Implementation of the ASTConsumer interface for reading an AST produced
@@ -88,16 +81,9 @@ private:
 // the AST.
 class MyASTConsumer : public ASTConsumer {
 public:
-  MyASTConsumer(Rewriter &R) : HandlerForIf(R), HandlerForFor(R), HandlerForTT(R) {
-    // Add a simple matcher for finding 'if' statements.
-    Matcher.addMatcher(ifStmt().bind("ifStmt"), &HandlerForIf);
+  MyASTConsumer(Rewriter &R) : HandlerForTT(R) {
 
-    // Add a complex matcher for finding 'for' loops with an initializer set
-    // to 0, < comparison in the codition and an increment. For example:
-    //
-    //  for (int i = 0; i < N; ++i)
-    Matcher.addMatcher(
-        forStmt(hasLoopInit(declStmt(hasSingleDecl(
+        /*forStmt(hasLoopInit(declStmt(hasSingleDecl(
                     varDecl(hasInitializer(integerLiteral(equals(0))))
                         .bind("initVarName")))),
                 hasIncrement(unaryOperator(
@@ -109,17 +95,20 @@ public:
                     hasLHS(ignoringParenImpCasts(declRefExpr(to(
                         varDecl(hasType(isInteger())).bind("condVarName"))))),
                     hasRHS(expr(hasType(isInteger()))))))
-            .bind("forLoopp"),
-        &HandlerForFor);
+            .bind("forLoop"),
+        &HandlerForFor);*/
+		
 
 	// find a for loop that exceeds L1 footprints, then send it to the handler above
     Matcher.addMatcher(
-		// functionDecl(hasDescendant(CUDAGlobalAttr())),
-        forStmt(hasDescendant(arraySubscriptExpr())).bind("forLoop"),
-			&HandlerForTT);
+        forStmt(hasDescendant(arraySubscriptExpr()),
+				hasIncrement(unaryOperator(hasUnaryOperand(declRefExpr().bind("iterVar"))))
+		).bind("forLoop"),
+	&HandlerForTT);
+
     Matcher.addMatcher(
 		arraySubscriptExpr(hasAncestor(forStmt())).bind("array"),
-			&HandlerForTT);
+	&HandlerForTT);
   }
 
   void HandleTranslationUnit(ASTContext &Context) override {
@@ -128,8 +117,6 @@ public:
   }
 
 private:
-  IfStmtHandler HandlerForIf;
-  IncrementForLoopHandler HandlerForFor;
   // added Matcher by hjkim
   ForStmtHandler HandlerForTT;
 
