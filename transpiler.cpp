@@ -39,8 +39,8 @@ public:
 	// visit ForStmt
 	// t_ForLoop = newly visited ForStmt, ForLoop = prev. visited ForStmt
     if (const ForStmt *t_ForLoop = Result.Nodes.getNodeAs<ForStmt>("forLoop")) {
-		// cache size --> cmdline parameter?
-		if (footprints > 256) {
+		// cache size --> cmdline parameter?, if hasIterVar is set
+		if (footprints > 256 && hasIterVar) {
 			// cache contention --> rewrite ForStmt
 			Rewrite.InsertText(ForLoop->getBeginLoc(), "/* throttling start */", true, true);
 			Rewrite.InsertText(ForLoop->getEndLoc(), "/* throttling end */", true, true);
@@ -54,17 +54,27 @@ public:
 
 	// visit Iterator variable
    	if (const DeclRefExpr *t_iterVar = Result.Nodes.getNodeAs<DeclRefExpr>("iterVar")) {
-			std::cout << t_iterVar->getNameInfo().getAsString() << std::endl;
+		// std::cout << t_iterVar->getNameInfo().getAsString() << std::endl;
+		iterVarName = t_iterVar->getNameInfo().getAsString();
 	}
 
 	// visit Array
-   	if (const ArraySubscriptExpr *ArrayVar = Result.Nodes.getNodeAs<ArraySubscriptExpr>("array")) {
+   	if (const ArraySubscriptExpr *t_array = Result.Nodes.getNodeAs<ArraySubscriptExpr>("array")) {
     	// Rewrite.InsertText(ArrayVar->getBeginLoc(), "-", true, true);
-		// ArrayVar->getIdx()->dump();
-		// temp footprints variable
+		// t_array->getIdx()->dump();
+		// t_array->dump();
+		// temp footprints variable, iteratively collect footprints
 		int t_ftp = 0;
-
+		
 		footprints += t_ftp;
+	}
+
+	// visit Array index
+   	if (const DeclRefExpr *t_arrayIdx = Result.Nodes.getNodeAs<DeclRefExpr>("arrayIdx")) {
+		if (t_arrayIdx->getNameInfo().getAsString() == iterVarName) {
+			// std::cout << "There is iter var in array idx" << std::endl;
+			hasIterVar = true;
+		}
 	}
   }
 
@@ -74,6 +84,7 @@ private:
   
   //DeclRefExpr *iterVar;
   std::string iterVarName;
+  bool hasIterVar;
 };
 
 // Implementation of the ASTConsumer interface for reading an AST produced
@@ -101,13 +112,24 @@ public:
 
 	// find a for loop that exceeds L1 footprints, then send it to the handler above
     Matcher.addMatcher(
-        forStmt(hasDescendant(arraySubscriptExpr()),
-				hasIncrement(unaryOperator(hasUnaryOperand(declRefExpr().bind("iterVar"))))
+        forStmt(
+			hasDescendant(arraySubscriptExpr()),
+			hasIncrement(unaryOperator(hasUnaryOperand(declRefExpr().bind("iterVar"))))
 		).bind("forLoop"),
 	&HandlerForTT);
 
     Matcher.addMatcher(
-		arraySubscriptExpr(hasAncestor(forStmt())).bind("array"),
+		arraySubscriptExpr(
+			hasAncestor(forStmt()),
+			implicitCastExpr(declRefExpr().bind("arrayIdx"))
+		).bind("array"),
+	&HandlerForTT);
+	// idea to merge these two?
+    Matcher.addMatcher(
+		declRefExpr(
+			hasAncestor(arraySubscriptExpr()),
+			hasAncestor(forStmt())
+		).bind("arrayIdx"),
 	&HandlerForTT);
   }
 
