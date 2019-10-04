@@ -27,13 +27,14 @@ using namespace clang::ast_matchers;
 using namespace clang::driver;
 using namespace clang::tooling;
 
-int footprints = 0;
-
 static llvm::cl::OptionCategory MatcherSampleCategory("Matcher Sample");
 
 class ForStmtHandler : public MatchFinder::MatchCallback {
 public:
-  ForStmtHandler(Rewriter &Rewrite) : Rewrite(Rewrite) {}
+  ForStmtHandler(Rewriter &Rewrite) : Rewrite(Rewrite) {
+  	footprints = 0;
+	hasIterVar = false;
+  }
 
   virtual void run(const MatchFinder::MatchResult &Result) {
 	// visit ForStmt
@@ -49,13 +50,7 @@ public:
 		// move to next ForStmt
 		ForLoop = const_cast<ForStmt*>(t_ForLoop);
 		footprints = 0;
-		
-	}
-
-	// visit Iterator variable
-   	if (const DeclRefExpr *t_iterVar = Result.Nodes.getNodeAs<DeclRefExpr>("iterVar")) {
-		// std::cout << t_iterVar->getNameInfo().getAsString() << std::endl;
-		iterVarName = t_iterVar->getNameInfo().getAsString();
+		hasIterVar = false;
 	}
 
 	// visit Array
@@ -76,6 +71,12 @@ public:
 			hasIterVar = true;
 		}
 	}
+
+	// visit Iterator variable
+   	if (const DeclRefExpr *t_iterVar = Result.Nodes.getNodeAs<DeclRefExpr>("iterVar")) {
+		// std::cout << t_iterVar->getNameInfo().getAsString() << std::endl;
+		iterVarName = t_iterVar->getNameInfo().getAsString();
+	}
   }
 
 private:
@@ -84,6 +85,7 @@ private:
   
   //DeclRefExpr *iterVar;
   std::string iterVarName;
+  int footprints;
   bool hasIterVar;
 };
 
