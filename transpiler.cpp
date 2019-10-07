@@ -50,15 +50,24 @@ public:
 
 	// GPU Code
 	if (isGPUKernel) {
+		// visit Parameter variable lists (global variable)
+    	if (const ValueDecl *t_parmVar = Result.Nodes.getNodeAs<ValueDecl>("parmVarDecl")) {
+			parmVarName.push_back(t_parmVar->getNameAsString());
+		}
+
 		// visit ForStmt
 		// t_ForLoop = newly visited ForStmt, ForLoop = prev. visited ForStmt
     	if (const ForStmt *t_ForLoop = Result.Nodes.getNodeAs<ForStmt>("forLoop")) {
 			// cache size --> cmdline parameter?, if hasIterVar is set
 			if (footprints > 256 && hasIterVar) {
+				// count footprints for global variables
+				for (int is=0; is<parmVarName.size(); is++)
+					std::cout << "vec: " << parmVarName[is] << std::endl;
+
 				// cache contention --> rewrite ForStmt
 				Rewrite.InsertText(ForLoop->getBeginLoc(), "/* throttling start */", true, true);
 				Rewrite.InsertText(ForLoop->getEndLoc(), "/* throttling end */", true, true);
-			} 
+			}
 
 			// move to next ForStmt
 			ForLoop = const_cast<ForStmt*>(t_ForLoop);
@@ -99,6 +108,7 @@ private:
   
   //DeclRefExpr *iterVar;
   std::string iterVarName;
+  std::vector<std::string> parmVarName;
   int footprints;
   bool hasIterVar;
   bool isGPUKernel;
@@ -130,6 +140,11 @@ public:
 	Matcher.addMatcher(
 		functionDecl().bind("funcDecl"),
 	&HandlerForTT);
+
+	Matcher.addMatcher(
+		parmVarDecl().bind("parmVarDecl"),
+	&HandlerForTT);
+
 
 	// find a for loop that exceeds L1 footprints, then send it to the handler above
     Matcher.addMatcher(
