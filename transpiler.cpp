@@ -34,49 +34,63 @@ public:
   ForStmtHandler(Rewriter &Rewrite) : Rewrite(Rewrite) {
   	footprints = 0;
 	hasIterVar = false;
+	isGPUKernel = false;
   }
 
   virtual void run(const MatchFinder::MatchResult &Result) {
-	// visit ForStmt
-	// t_ForLoop = newly visited ForStmt, ForLoop = prev. visited ForStmt
-    if (const ForStmt *t_ForLoop = Result.Nodes.getNodeAs<ForStmt>("forLoop")) {
-		// cache size --> cmdline parameter?, if hasIterVar is set
-		if (footprints > 256 && hasIterVar) {
-			// cache contention --> rewrite ForStmt
-			Rewrite.InsertText(ForLoop->getBeginLoc(), "/* throttling start */", true, true);
-			Rewrite.InsertText(ForLoop->getEndLoc(), "/* throttling end */", true, true);
-		} 
-
-		// move to next ForStmt
-		ForLoop = const_cast<ForStmt*>(t_ForLoop);
-		footprints = 0;
-		hasIterVar = false;
-	}
-
-	// visit Array
-   	if (const ArraySubscriptExpr *t_array = Result.Nodes.getNodeAs<ArraySubscriptExpr>("array")) {
-    	// Rewrite.InsertText(ArrayVar->getBeginLoc(), "-", true, true);
-		// t_array->getIdx()->dump();
-		// t_array->dump();
-		// temp footprints variable, iteratively collect footprints
-		int t_ftp = 0;
-		
-		footprints += t_ftp;
-	}
-
-	// visit Array index
-   	if (const DeclRefExpr *t_arrayIdx = Result.Nodes.getNodeAs<DeclRefExpr>("arrayIdx")) {
-		if (t_arrayIdx->getNameInfo().getAsString() == iterVarName) {
-			// std::cout << "There is iter var in array idx" << std::endl;
-			hasIterVar = true;
+	if (const FunctionDecl *t_funcDecl = Result.Nodes.getNodeAs<FunctionDecl>("funcDecl")) {
+		if (t_funcDecl->hasAttr<CUDAGlobalAttr>()) {
+			std::cout << "CUDA: " << t_funcDecl->getNameInfo().getAsString() << std::endl;
+			isGPUKernel = true;
+		} else {
+			// std::cout << "Non-CUDA: " << t_funcDecl->getNameInfo().getAsString() << std::endl;
+			isGPUKernel = false;
 		}
 	}
 
-	// visit Iterator variable
-   	if (const DeclRefExpr *t_iterVar = Result.Nodes.getNodeAs<DeclRefExpr>("iterVar")) {
-		// std::cout << t_iterVar->getNameInfo().getAsString() << std::endl;
-		iterVarName = t_iterVar->getNameInfo().getAsString();
-	}
+	// GPU Code
+	if (isGPUKernel) {
+		// visit ForStmt
+		// t_ForLoop = newly visited ForStmt, ForLoop = prev. visited ForStmt
+    	if (const ForStmt *t_ForLoop = Result.Nodes.getNodeAs<ForStmt>("forLoop")) {
+			// cache size --> cmdline parameter?, if hasIterVar is set
+			if (footprints > 256 && hasIterVar) {
+				// cache contention --> rewrite ForStmt
+				Rewrite.InsertText(ForLoop->getBeginLoc(), "/* throttling start */", true, true);
+				Rewrite.InsertText(ForLoop->getEndLoc(), "/* throttling end */", true, true);
+			} 
+
+			// move to next ForStmt
+			ForLoop = const_cast<ForStmt*>(t_ForLoop);
+			footprints = 0;
+			hasIterVar = false;
+		}
+
+		// visit Array
+   		if (const ArraySubscriptExpr *t_array = Result.Nodes.getNodeAs<ArraySubscriptExpr>("array")) {
+    		// Rewrite.InsertText(ArrayVar->getBeginLoc(), "-", true, true);
+			// t_array->getIdx()->dump();
+			// t_array->dump();
+			// temp footprints variable, iteratively collect footprints
+			int t_ftp = 0;
+		
+			footprints += t_ftp;
+		}
+
+		// visit Array index
+   		if (const DeclRefExpr *t_arrayIdx = Result.Nodes.getNodeAs<DeclRefExpr>("arrayIdx")) {
+			if (t_arrayIdx->getNameInfo().getAsString() == iterVarName) {
+				// std::cout << "There is iter var in array idx" << std::endl;
+				hasIterVar = true;
+			}
+		}
+
+		// visit Iterator variable
+   		if (const DeclRefExpr *t_iterVar = Result.Nodes.getNodeAs<DeclRefExpr>("iterVar")) {
+			// std::cout << t_iterVar->getNameInfo().getAsString() << std::endl;
+			iterVarName = t_iterVar->getNameInfo().getAsString();
+		}
+  	}
   }
 
 private:
@@ -87,6 +101,7 @@ private:
   std::string iterVarName;
   int footprints;
   bool hasIterVar;
+  bool isGPUKernel;
 };
 
 // Implementation of the ASTConsumer interface for reading an AST produced
@@ -111,6 +126,10 @@ public:
             .bind("forLoop"),
         &HandlerForFor);*/
 		
+
+	Matcher.addMatcher(
+		functionDecl().bind("funcDecl"),
+	&HandlerForTT);
 
 	// find a for loop that exceeds L1 footprints, then send it to the handler above
     Matcher.addMatcher(
