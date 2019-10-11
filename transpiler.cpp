@@ -55,14 +55,28 @@ public:
 			parmVarName.push_back(t_parmVar->getNameAsString());
 		}
 
+		if (const ValueDecl *t_decl = Result.Nodes.getNodeAs<ValueDecl>("declDecl")) {
+				t_decl->dump();
+				QualType t_type = t_decl->getType();
+				std::cout << t_type.getAsString() << std::endl;
+		}
+		
+		if (const ValueDecl *t_decl = Result.Nodes.getNodeAs<ValueDecl>("varDecl")) {
+				t_decl->dump();
+				QualType t_type = t_decl->getType();
+				std::cout << t_type.getAsString() << std::endl;
+		}
+
 		// visit ForStmt
 		// t_ForLoop = newly visited ForStmt, ForLoop = prev. visited ForStmt
     	if (const ForStmt *t_ForLoop = Result.Nodes.getNodeAs<ForStmt>("forLoop")) {
 			// cache size --> cmdline parameter?, if hasIterVar is set
 			if (footprints > 256 && hasIterVar) {
 				// count footprints for global variables
-				for (int is=0; is<parmVarName.size(); is++)
+				for (int is=0; is<parmVarName.size(); is++) {
 					std::cout << "vec: " << parmVarName[is] << std::endl;
+					parmVarName.erase(parmVarName.begin() + is);
+				}
 
 				// cache contention --> rewrite ForStmt
 				Rewrite.InsertText(ForLoop->getBeginLoc(), "/* throttling start */", true, true);
@@ -133,18 +147,23 @@ public:
                     hasLHS(ignoringParenImpCasts(declRefExpr(to(
                         varDecl(hasType(isInteger())).bind("condVarName"))))),
                     hasRHS(expr(hasType(isInteger()))))))
-            .bind("forLoop"),
-        &HandlerForFor);*/
-		
+            .bind("forLoop"),*/
 
+	// to distiguish cuda function and others
 	Matcher.addMatcher(
 		functionDecl().bind("funcDecl"),
 	&HandlerForTT);
 
+	// to collect global variables
 	Matcher.addMatcher(
 		parmVarDecl().bind("parmVarDecl"),
 	&HandlerForTT);
 
+	Matcher.addMatcher(
+		varDecl(
+			forEachDescendant(declRefExpr(hasType(recordDecl(hasName("__cuda_builtin_threadIdx_t")))).bind("declDecl"))
+		).bind("varDecl"),
+	&HandlerForTT);
 
 	// find a for loop that exceeds L1 footprints, then send it to the handler above
     Matcher.addMatcher(
@@ -154,6 +173,7 @@ public:
 		).bind("forLoop"),
 	&HandlerForTT);
 
+	// is it global variable?
     Matcher.addMatcher(
 		arraySubscriptExpr(
 			hasAncestor(forStmt()),
@@ -177,7 +197,6 @@ public:
 private:
   // added Matcher by hjkim
   ForStmtHandler HandlerForTT;
-
   MatchFinder Matcher;
 };
 
