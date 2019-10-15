@@ -43,30 +43,32 @@ public:
 			std::cout << "CUDA: " << t_funcDecl->getNameInfo().getAsString() << std::endl;
 			isGPUKernel = true;
 		} else {
-			// std::cout << "Non-CUDA: " << t_funcDecl->getNameInfo().getAsString() << std::endl;
 			isGPUKernel = false;
 		}
 	}
 
 	// GPU Code
 	if (isGPUKernel) {
-		// visit Parameter variable lists (global variable)
+		// visit Parameter variable lists (global variables)
     	if (const ValueDecl *t_parmVar = Result.Nodes.getNodeAs<ValueDecl>("parmVarDecl")) {
+			// std::cout << "parmVar: " << t_parmVar->getNameAsString() << std::endl;
 			parmVarName.push_back(t_parmVar->getNameAsString());
 		}
 
-		// visit varDecl, which is assigned with threadIdx.x/y/z
+		// visit variable assignment assigned with threadIdx.x/y/z, 
+		// 		pattern 1) int i = threadIdx.x; --> "varDecl"
+		//  	pattern 2) int i; i = threadIdx.x; --> "declRefExpr"
 		if (const ValueDecl *t_decl = Result.Nodes.getNodeAs<ValueDecl>("varDecl")) {
-				std::cout << "varDecl: " << t_decl->getNameAsString() << std::endl;
+				// std::cout << "varDecl: " << t_decl->getNameAsString() << std::endl;
 				tidVar.push_back(t_decl->getNameAsString());
 		}
 		if (const DeclRefExpr *t_decl = Result.Nodes.getNodeAs<DeclRefExpr>("declRefExpr")) {
-				std::cout << "declRefExpr: " << t_decl->getNameInfo().getAsString() << std::endl;
+				// std::cout << "declRefExpr: " << t_decl->getNameInfo().getAsString() << std::endl;
 				tidVar.push_back(t_decl->getNameInfo().getAsString());
 		}
 
 		// visit ForStmt
-		// t_ForLoop = newly visited ForStmt, ForLoop = prev. visited ForStmt
+		//	 	t_ForLoop = newly visited ForStmt, ForLoop = prev. visited ForStmt
     	if (const ForStmt *t_ForLoop = Result.Nodes.getNodeAs<ForStmt>("forLoop")) {
 			// cache size --> cmdline parameter?, if hasIterVar is set
 			if (footprints > 256 && hasIterVar) {
@@ -101,7 +103,7 @@ public:
 		// visit Array index
    		if (const DeclRefExpr *t_arrayIdx = Result.Nodes.getNodeAs<DeclRefExpr>("arrayIdx")) {
 			if (t_arrayIdx->getNameInfo().getAsString() == iterVarName) {
-				// std::cout << "There is iter var in array idx" << std::endl;
+				std::cout << "There is iter var in array idx" << std::endl;
 				hasIterVar = true;
 			}
 		}
@@ -133,21 +135,6 @@ private:
 class MyASTConsumer : public ASTConsumer {
 public:
   MyASTConsumer(Rewriter &R) : HandlerForTT(R) {
-
-        /*forStmt(hasLoopInit(declStmt(hasSingleDecl(
-                    varDecl(hasInitializer(integerLiteral(equals(0))))
-                        .bind("initVarName")))),
-                hasIncrement(unaryOperator(
-                    hasOperatorName("++"),
-                    hasUnaryOperand(declRefExpr(to(
-                        varDecl(hasType(isInteger())).bind("incVarName")))))),
-                hasCondition(binaryOperator(
-                    hasOperatorName("<"),
-                    hasLHS(ignoringParenImpCasts(declRefExpr(to(
-                        varDecl(hasType(isInteger())).bind("condVarName"))))),
-                    hasRHS(expr(hasType(isInteger()))))))
-            .bind("forLoop"),*/
-
 	// to distiguish cuda function and others
 	Matcher.addMatcher(
 		functionDecl().bind("funcDecl"),
@@ -158,6 +145,7 @@ public:
 		parmVarDecl().bind("parmVarDecl"),
 	&HandlerForTT);
 
+	// find threadIdx.x
 	Matcher.addMatcher(
 		memberExpr(
 			has(opaqueValueExpr(hasType(recordDecl(hasName("__cuda_builtin_threadIdx_t"))))),
