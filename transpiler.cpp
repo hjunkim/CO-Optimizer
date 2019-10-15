@@ -57,9 +57,12 @@ public:
 
 		// visit varDecl, which is assigned with threadIdx.x/y/z
 		if (const ValueDecl *t_decl = Result.Nodes.getNodeAs<ValueDecl>("varDecl")) {
-				t_decl->dump();
-				threadIdxVar.push_back(t_decl->getNameAsString());
-				std::cout << "thread variable: " << t_decl->getNameAsString() << std::endl;
+				std::cout << "varDecl: " << t_decl->getNameAsString() << std::endl;
+				tidVar.push_back(t_decl->getNameAsString());
+		}
+		if (const DeclRefExpr *t_decl = Result.Nodes.getNodeAs<DeclRefExpr>("declRefExpr")) {
+				std::cout << "declRefExpr: " << t_decl->getNameInfo().getAsString() << std::endl;
+				tidVar.push_back(t_decl->getNameInfo().getAsString());
 		}
 
 		// visit ForStmt
@@ -118,7 +121,7 @@ private:
   //DeclRefExpr *iterVar;
   std::string iterVarName;
   std::vector<std::string> parmVarName;
-  std::vector<std::string> threadIdxVar;
+  std::vector<std::string> tidVar;
   int footprints;
   bool hasIterVar;
   bool isGPUKernel;
@@ -156,16 +159,14 @@ public:
 	&HandlerForTT);
 
 	Matcher.addMatcher(
-		/*varDecl(
-			forEachDescendant(declRefExpr(allOf(
-				hasAncestor(memberExpr(member(matchesName("__fetch_builtin_x")))),
-				hasType(recordDecl(hasName("__cuda_builtin_threadIdx_t")))
-			)))).bind("varDecl"),*/
 		memberExpr(
 			has(opaqueValueExpr(hasType(recordDecl(hasName("__cuda_builtin_threadIdx_t"))))),
 			member(matchesName(".__fetch_builtin_x")),
-			hasAncestor(varDecl().bind("varDecl"))
-			).bind("memberExpr"),
+			anyOf(
+					hasAncestor(binaryOperator(has(declRefExpr().bind("declRefExpr")))),
+					hasAncestor(varDecl().bind("varDecl"))
+			)
+		).bind("memberExpr"),
 	&HandlerForTT);
 
 	// find a for loop that exceeds L1 footprints, then send it to the handler above
