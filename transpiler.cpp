@@ -34,6 +34,7 @@ public:
   ForStmtHandler(Rewriter &Rewrite) : Rewrite(Rewrite) {
   	footprints = 0;
 	hasIterVar = false;
+	isGlobalVar = false;
 	isGPUKernel = false;
   }
 
@@ -55,6 +56,7 @@ public:
 			parmVarName.push_back(t_parmVar->getNameAsString());
 		}
 
+
 		// visit variable assignment assigned with threadIdx.x/y/z, 
 		// 		pattern 1) int i = threadIdx.x; --> "varDecl"
 		//  	pattern 2) int i; i = threadIdx.x; --> "declRefExpr"
@@ -67,7 +69,8 @@ public:
 				tidVar.push_back(t_decl->getNameInfo().getAsString());
 		}
 
-		// visit ForStmt
+
+		// visit ForStmt, handles **previously** visited ForLoop
 		//	 	t_ForLoop = newly visited ForStmt, ForLoop = prev. visited ForStmt
     	if (const ForStmt *t_ForLoop = Result.Nodes.getNodeAs<ForStmt>("forLoop")) {
 			// cache size --> cmdline parameter?, if hasIterVar is set
@@ -89,7 +92,8 @@ public:
 			hasIterVar = false;
 		}
 
-		// visit Array
+
+		// visit Array ??? for what ???
    		if (const ArraySubscriptExpr *t_array = Result.Nodes.getNodeAs<ArraySubscriptExpr>("array")) {
     		// Rewrite.InsertText(ArrayVar->getBeginLoc(), "-", true, true);
 			// t_array->getIdx()->dump();
@@ -99,16 +103,35 @@ public:
 		
 			footprints += t_ftp;
 		}
-
-		// visit Array index
-   		if (const DeclRefExpr *t_arrayIdx = Result.Nodes.getNodeAs<DeclRefExpr>("arrayIdx")) {
-			if (t_arrayIdx->getNameInfo().getAsString() == iterVarName) {
-				std::cout << "There is iter var in array idx" << std::endl;
+		// check if array var is global
+   		if (const DeclRefExpr *t_var = Result.Nodes.getNodeAs<DeclRefExpr>("checkGlobalArrayVar")) {
+			// t_var->getNameInfo().getAsString()
+			std::string t_str = t_var->getNameInfo().getAsString();
+			for (int is=0; is<parmVarName.size(); is++) {
+				if (t_str == parmVarName[is]) {
+					// std::cout << t_str << " is global var" << std::endl;
+					isGlobalVar = true;
+				}
+			}
+		}
+		// visit each var in array index
+   		if (const DeclRefExpr *t_var = Result.Nodes.getNodeAs<DeclRefExpr>("arrayIdx")) {
+			std::string t_str = t_var->getNameInfo().getAsString();
+			if (t_str == iterVarName) {
+				std::cout << t_str << " is an iter. var" << std::endl;
 				hasIterVar = true;
+			}
+
+			for (int is=0; is<tidVar.size(); is++) {
+				if (t_str == tidVar[is]) {
+					std::cout << t_str << " is ---- tid var" << std::endl;
+				}
 			}
 		}
 
+
 		// visit Iterator variable
+		// saves iterator variable to iterVarName
    		if (const DeclRefExpr *t_iterVar = Result.Nodes.getNodeAs<DeclRefExpr>("iterVar")) {
 			// std::cout << t_iterVar->getNameInfo().getAsString() << std::endl;
 			iterVarName = t_iterVar->getNameInfo().getAsString();
@@ -126,6 +149,7 @@ private:
   std::vector<std::string> tidVar;
   int footprints;
   bool hasIterVar;
+  bool isGlobalVar;
   bool isGPUKernel;
 };
 
@@ -169,16 +193,17 @@ public:
     Matcher.addMatcher(
 		arraySubscriptExpr(
 			hasAncestor(forStmt()),
-			implicitCastExpr(declRefExpr().bind("arrayIdx"))
+			has(implicitCastExpr(has(declRefExpr().bind("checkGlobalArrayVar")))),
+			forEachDescendant(declRefExpr().bind("arrayIdx"))
 		).bind("array"),
 	&HandlerForTT);
 	// idea to merge these two?
-    Matcher.addMatcher(
+    /*Matcher.addMatcher(
 		declRefExpr(
 			hasAncestor(arraySubscriptExpr()),
 			hasAncestor(forStmt())
 		).bind("arrayIdx"),
-	&HandlerForTT);
+	&HandlerForTT);*/
   }
 
   void HandleTranslationUnit(ASTContext &Context) override {
