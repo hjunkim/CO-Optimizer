@@ -118,15 +118,27 @@ public:
    		if (const DeclRefExpr *t_var = Result.Nodes.getNodeAs<DeclRefExpr>("arrayIdx")) {
 			std::string t_str = t_var->getNameInfo().getAsString();
 			if (t_str == iterVarName) {
-				std::cout << t_str << " is an iter. var" << std::endl;
+				// std::cout << t_str << " is an iter. var" << std::endl;
 				hasIterVar = true;
 			}
 
 			for (int is=0; is<tidVar.size(); is++) {
 				if (t_str == tidVar[is]) {
-					std::cout << t_str << " is ---- tid var" << std::endl;
+					// std::cout << t_str << " is ---- tid var" << std::endl;
+					// check its coefficient
+					;
 				}
 			}
+		}
+		// visit each var in array index
+   		if (const Expr *t = Result.Nodes.getNodeAs<Expr>("pattern0")) {
+			std::cout << "pattern 0: " << std::endl;
+		}
+		if (const Expr *t = Result.Nodes.getNodeAs<Expr>("pattern1")) {
+			std::cout << "\tpattern 1: " << std::endl;
+		}
+		if (const Expr *t = Result.Nodes.getNodeAs<Expr>("pattern2")) {
+			std::cout << "\t\tpattern 2: " << std::endl;
 		}
 
 
@@ -197,13 +209,20 @@ public:
 			forEachDescendant(declRefExpr().bind("arrayIdx"))
 		).bind("array"),
 	&HandlerForTT);
-	// idea to merge these two?
-    /*Matcher.addMatcher(
-		declRefExpr(
-			hasAncestor(arraySubscriptExpr()),
+
+
+	// array index for calculating footprints size
+    Matcher.addMatcher(
+		arraySubscriptExpr(
+			anyOf(
+				hasIndex(integerLiteral().bind("pattern0")), // array[0]
+				hasIndex(implicitCastExpr().bind("pattern1")), // array[var]
+				hasIndex(binaryOperator().bind("pattern2")) // array[var * N + ..]
+				// hasIndex(parenExpr().bind("pattern2")) 
+			),
 			hasAncestor(forStmt())
-		).bind("arrayIdx"),
-	&HandlerForTT);*/
+		),
+	&HandlerForTT);
   }
 
   void HandleTranslationUnit(ASTContext &Context) override {
