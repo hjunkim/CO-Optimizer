@@ -29,11 +29,11 @@ using namespace clang::tooling;
 
 static llvm::cl::OptionCategory MatcherSampleCategory("Matcher Sample");
 
+bool isSecCall = false;
+
 class ForStmtHandler : public MatchFinder::MatchCallback {
 public:
   ForStmtHandler(Rewriter &Rewrite) : Rewrite(Rewrite) {
-  	footprints = 0;
-	hasIterVar = false;
 	isGlobalVar = false;
 	isGPUKernel = false;
   }
@@ -46,11 +46,28 @@ public:
 		} else {
 			isGPUKernel = false;
 		}
+
+		// init tidVar
+		for (int is=0; is<tidVar.size(); is++)
+			tidVar.erase(tidVar.begin() + is);
 	}
 
-	// GPU Code
-	if (isGPUKernel) {
-		// visit Parameter variable lists (global variables)
+	// GPU Code && first AST traverse
+	if (isGPUKernel && !isSecCall) {
+		// visit ForStmt, initialize parameters
+		if (const ForStmt *t_ForLoop = Result.Nodes.getNodeAs<ForStmt>("forLoop")) {
+			ForLoop = const_cast<ForStmt*>(t_ForLoop);
+		
+			// init parmVarName
+			for (int is=0; is<parmVarName.size(); is++)
+				parmVarName.erase(parmVarName.begin() + is);
+
+			footprints.erase(ForLoop);
+			hasIterVar.erase(ForLoop);
+
+		}
+
+		// visit Parameter variable lists (they are global variables we are targeting on!!!)
     	if (const ValueDecl *t_parmVar = Result.Nodes.getNodeAs<ValueDecl>("parmVarDecl")) {
 			// std::cout << "parmVar: " << t_parmVar->getNameAsString() << std::endl;
 			parmVarName.push_back(t_parmVar->getNameAsString());
@@ -70,38 +87,15 @@ public:
 		}
 
 
-		// visit ForStmt, handles **previously** visited ForLoop
-		//	 	t_ForLoop = newly visited ForStmt, ForLoop = prev. visited ForStmt
-    	if (const ForStmt *t_ForLoop = Result.Nodes.getNodeAs<ForStmt>("forLoop")) {
-			// cache size --> cmdline parameter?, if hasIterVar is set
-			if (footprints > 256 && hasIterVar) {
-				// count footprints for global variables
-				for (int is=0; is<parmVarName.size(); is++) {
-					std::cout << "vec: " << parmVarName[is] << std::endl;
-					parmVarName.erase(parmVarName.begin() + is);
-				}
-
-				// cache contention --> rewrite ForStmt
-				Rewrite.InsertText(ForLoop->getBeginLoc(), "/* throttling start */", true, true);
-				Rewrite.InsertText(ForLoop->getEndLoc(), "/* throttling end */", true, true);
-			}
-
-			// move to next ForStmt
-			ForLoop = const_cast<ForStmt*>(t_ForLoop);
-			footprints = 0;
-			hasIterVar = false;
-		}
-
-
 		// visit Array ??? for what ???
    		if (const ArraySubscriptExpr *t_array = Result.Nodes.getNodeAs<ArraySubscriptExpr>("array")) {
     		// Rewrite.InsertText(ArrayVar->getBeginLoc(), "-", true, true);
 			// t_array->getIdx()->dump();
 			// t_array->dump();
 			// temp footprints variable, iteratively collect footprints
-			int t_ftp = 0;
+			int t_ftp = 1;
 		
-			footprints += t_ftp;
+			footprints[ForLoop] += t_ftp;
 		}
 		// check if array var is global
    		if (const DeclRefExpr *t_var = Result.Nodes.getNodeAs<DeclRefExpr>("checkGlobalArrayVar")) {
@@ -119,7 +113,7 @@ public:
 			std::string t_str = t_var->getNameInfo().getAsString();
 			if (t_str == iterVarName) {
 				// std::cout << t_str << " is an iter. var" << std::endl;
-				hasIterVar = true;
+				hasIterVar[ForLoop] = true;
 			}
 
 			for (int is=0; is<tidVar.size(); is++) {
@@ -148,19 +142,44 @@ public:
 			// std::cout << t_iterVar->getNameInfo().getAsString() << std::endl;
 			iterVarName = t_iterVar->getNameInfo().getAsString();
 		}
-  	}
+	}
+
+
+	// GPU code && second AST traverse
+	if (isGPUKernel && isSecCall) {
+		// check footprints and loop-variable (iterVar)
+		// std::map<string, int> footprints, std::map<string, bool>
+    	if (const ForStmt *t_ForLoop = Result.Nodes.getNodeAs<ForStmt>("forLoop")){
+			ForLoop = const_cast<ForStmt*>(t_ForLoop);
+
+			for (auto is=footprints.begin(); is!=footprints.end(); is++) {
+				std::cout << "\t\tfootprints-Key: " << is->first << "- Value: " << is->second << std::endl;
+			}
+			for (auto is=hasIterVar.begin(); is!=hasIterVar.end(); is++) {
+				std::cout << "\t\thasIterVar-Key: " << is->first << "- Value: " << is->second << std::endl;
+			}
+
+			// cache size --> cmdline parameter?, if hasIterVar is set
+			if (footprints[ForLoop] > 256 && hasIterVar[ForLoop]) {
+				// cache contention --> rewrite ForStmt
+				Rewrite.InsertText(ForLoop->getBeginLoc(), "/* throttling start */", true, true);
+				Rewrite.InsertText(ForLoop->getEndLoc(), "/* throttling end */", true, true);
+			}
+		}
+	}
   }
 
 private:
   Rewriter &Rewrite;
+  // current ForStmt
   ForStmt *ForLoop;
   
   //DeclRefExpr *iterVar;
   std::string iterVarName;
   std::vector<std::string> parmVarName;
   std::vector<std::string> tidVar;
-  int footprints;
-  bool hasIterVar;
+  std::map<ForStmt *, int> footprints;
+  std::map<ForStmt *, bool> hasIterVar;
   bool isGlobalVar;
   bool isGPUKernel;
 };
@@ -193,14 +212,7 @@ public:
 		).bind("memberExpr"),
 	&HandlerForTT);
 
-	// find a for loop that exceeds L1 footprints, then send it to the handler above
-    Matcher.addMatcher(
-        forStmt(
-			hasDescendant(arraySubscriptExpr()),
-			hasIncrement(unaryOperator(hasUnaryOperand(declRefExpr().bind("iterVar"))))
-		).bind("forLoop"),
-	&HandlerForTT);
-
+	
 	// is it global variable?
     Matcher.addMatcher(
 		arraySubscriptExpr(
@@ -223,10 +235,21 @@ public:
 			hasAncestor(forStmt())
 		),
 	&HandlerForTT);
+
+
+	// find a for loop that exceeds L1 footprints, then send it to the handler above
+    Matcher.addMatcher(
+        forStmt(
+			hasDescendant(arraySubscriptExpr()),
+			hasIncrement(unaryOperator(hasUnaryOperand(declRefExpr().bind("iterVar"))))
+		).bind("forLoop"),
+	&HandlerForTT);
   }
 
   void HandleTranslationUnit(ASTContext &Context) override {
     // Run the matchers when we have the whole TU parsed.
+    Matcher.matchAST(Context);
+	isSecCall = true;
     Matcher.matchAST(Context);
   }
 
