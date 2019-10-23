@@ -88,15 +88,15 @@ public:
 
 
 		// visit Array ??? for what ???
-   		if (const ArraySubscriptExpr *t_array = Result.Nodes.getNodeAs<ArraySubscriptExpr>("array")) {
+   		/*if (const ArraySubscriptExpr *t_array = Result.Nodes.getNodeAs<ArraySubscriptExpr>("array")) {
     		// Rewrite.InsertText(ArrayVar->getBeginLoc(), "-", true, true);
 			// t_array->getIdx()->dump();
 			// t_array->dump();
 			// temp footprints variable, iteratively collect footprints
-			int t_ftp = 1;
+			int t_ftp = 0;
 		
 			footprints[ForLoop] += t_ftp;
-		}
+		}*/
 		// check if array var is global
    		if (const DeclRefExpr *t_var = Result.Nodes.getNodeAs<DeclRefExpr>("checkGlobalArrayVar")) {
 			// t_var->getNameInfo().getAsString()
@@ -115,24 +115,30 @@ public:
 				// std::cout << t_str << " is an iter. var" << std::endl;
 				hasIterVar[ForLoop] = true;
 			}
-
-			for (int is=0; is<tidVar.size(); is++) {
-				if (t_str == tidVar[is]) {
-					// std::cout << t_str << " is ---- tid var" << std::endl;
-					// check its coefficient
-					;
-				}
-			}
 		}
 		// visit each var in array index
-   		if (const Expr *t = Result.Nodes.getNodeAs<Expr>("pattern0")) {
-			std::cout << "pattern 0: " << std::endl;
-		}
 		if (const Expr *t = Result.Nodes.getNodeAs<Expr>("pattern1")) {
 			std::cout << "\tpattern 1: " << std::endl;
+			footprints[ForLoop] += 1;
 		}
-		if (const Expr *t = Result.Nodes.getNodeAs<Expr>("pattern2")) {
-			std::cout << "\t\tpattern 2: " << std::endl;
+		// [tid * N .. ]
+		if (const DeclRefExpr *t = Result.Nodes.getNodeAs<DeclRefExpr>("pattern2_1")) {
+			for (int is=0; is<tidVar.size(); is++) {
+				if (t->getNameInfo().getAsString() == tidVar[is]) {
+					std::cout << t->getNameInfo().getAsString() << "\tpattern 2: * tid var" << std::endl;
+					// check its coefficient
+				}
+			}
+			
+		}
+		// [tid + or tid -]
+		if (const DeclRefExpr *t = Result.Nodes.getNodeAs<DeclRefExpr>("pattern2_2")) {
+			for (int is=0; is<tidVar.size(); is++) {
+				if (t->getNameInfo().getAsString() == tidVar[is]) {
+					std::cout << t->getNameInfo().getAsString() << "\tpattern 2: +/- and tid var" << std::endl;
+					footprints[ForLoop] += 1;
+				}
+			}
 		}
 
 
@@ -152,12 +158,13 @@ public:
     	if (const ForStmt *t_ForLoop = Result.Nodes.getNodeAs<ForStmt>("forLoop")){
 			ForLoop = const_cast<ForStmt*>(t_ForLoop);
 
-			for (auto is=footprints.begin(); is!=footprints.end(); is++) {
-				std::cout << "\t\tfootprints-Key: " << is->first << "- Value: " << is->second << std::endl;
-			}
-			for (auto is=hasIterVar.begin(); is!=hasIterVar.end(); is++) {
-				std::cout << "\t\thasIterVar-Key: " << is->first << "- Value: " << is->second << std::endl;
-			}
+			// debug code - properly record footprints and iterVar?
+			// for (auto is=footprints.begin(); is!=footprints.end(); is++) {
+			std::cout << "\t\tfootprints-Key: " << ForLoop << "- Value: " << footprints[ForLoop] << std::endl;
+			//}
+			// for (auto is=hasIterVar.begin(); is!=hasIterVar.end(); is++) {
+			std::cout << "\t\thasIterVar-Key: " << ForLoop << "- Value: " << hasIterVar[ForLoop] << std::endl;
+			//}
 
 			// cache size --> cmdline parameter?, if hasIterVar is set
 			if (footprints[ForLoop] > 256 && hasIterVar[ForLoop]) {
@@ -227,11 +234,29 @@ public:
     Matcher.addMatcher(
 		arraySubscriptExpr(
 			anyOf(
-				hasIndex(integerLiteral().bind("pattern0")), // array[0]
-				hasIndex(implicitCastExpr().bind("pattern1")), // array[var]
-				hasIndex(binaryOperator().bind("pattern2")) // array[var * N + ..]
-				// hasIndex(parenExpr().bind("pattern2")) 
+				hasIndex(implicitCastExpr().bind("pattern1")), // array[var], array[0]
+				// hasIndex(binaryOperator().bind("pattern2")) // array[var * N + ..]
+				forEachDescendant(
+					declRefExpr(hasParent(implicitCastExpr(
+						hasParent(binaryOperator(hasOperatorName("*")))))
+					).bind("pattern2_1")
+				) // array[var + ..]
 			),
+			hasAncestor(forStmt())
+		),
+	&HandlerForTT);
+	Matcher.addMatcher(
+		arraySubscriptExpr(
+			// hasIndex(binaryOperator().bind("pattern2")) // array[var * N + ..]
+			forEachDescendant(
+				declRefExpr(
+					hasParent(implicitCastExpr(hasParent(binaryOperator(
+						anyOf(
+							hasOperatorName("+"),
+							hasOperatorName("-")
+						)
+				))))).bind("pattern2_2")
+			), // array[var + ..]
 			hasAncestor(forStmt())
 		),
 	&HandlerForTT);
