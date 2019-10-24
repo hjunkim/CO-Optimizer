@@ -39,6 +39,13 @@ public:
   }
 
   virtual void run(const MatchFinder::MatchResult &Result) {
+	if (const CUDAKernelCallExpr *t_cudaCall = Result.Nodes.getNodeAs<CUDAKernelCallExpr>("cudaCall")) {
+		/*auto *argConfig = t_cudaCall->getConfig();
+		// for (auto is=argConfig->arg_begin(); is!=argConfig->arg_end(); is++) {
+		auto *t_expr = (*argConfig->arg_begin())->IgnoreImpCasts();
+		std::cout << "arguments-" << t_expr->getValue().getLimitedValue() << std::endl;*/
+		;
+	}
 	if (const FunctionDecl *t_funcDecl = Result.Nodes.getNodeAs<FunctionDecl>("funcDecl")) {
 		if (t_funcDecl->hasAttr<CUDAGlobalAttr>()) {
 			std::cout << "CUDA: " << t_funcDecl->getNameInfo().getAsString() << std::endl;
@@ -150,12 +157,12 @@ public:
 						if (t_int > 32) t_int = 32;
 						footprints[ForLoop] += t_int;
 					}
-					else if (const auto *Cast = dyn_cast<FloatingLiteral>(t_child)) {
+					/*else if (const auto *Cast = dyn_cast<FloatingLiteral>(t_child)) {
 						float t_float = Cast->getValue().convertToFloat();
 						std::cout << "\t-FloatingLiteral: " << t_float << std::endl;
 						if (t_float > 32.0) t_float = 32.0;
 						footprints[ForLoop] += t_float;
-					}
+					}*/
 					else {
 						std::cout << "\t-Unknown child" << std::endl;
 					}
@@ -191,20 +198,36 @@ public:
 			ForLoop = const_cast<ForStmt*>(t_ForLoop);
 
 			// debug code - properly record footprints and iterVar?
-			/* 
-			for (auto is=footprints.begin(); is!=footprints.end(); is++) {
+			// for (auto is=footprints.begin(); is!=footprints.end(); is++) {
 				std::cout << "\t\tfootprints-Key: " << ForLoop << "- Value: " << footprints[ForLoop] << std::endl;
-			}
-			for (auto is=hasIterVar.begin(); is!=hasIterVar.end(); is++) {
+			// for (auto is=hasIterVar.begin(); is!=hasIterVar.end(); is++) {
 				std::cout << "\t\thasIterVar-Key: " << ForLoop << "- Value: " << hasIterVar[ForLoop] << std::endl;
-			}
-			*/
 
 			// cache size --> cmdline parameter?, if hasIterVar is set
-			if (footprints[ForLoop] > 256 && hasIterVar[ForLoop]) {
+			if (footprints[ForLoop] > 32 && hasIterVar[ForLoop]) {
 				// cache contention --> rewrite ForStmt
-				Rewrite.InsertText(ForLoop->getBeginLoc(), "/* throttling start */", true, true);
-				Rewrite.InsertText(ForLoop->getEndLoc(), "/* throttling end */", true, true);
+				n_warps_block = 8;
+				int cache_size = 256; // 32*1024/128 = 256 cache lines
+				int block_size = n_warps_block;
+
+				int tfactor = 0;
+				std::string w_limiter;
+
+				int t_fpt = footprints[ForLoop] * block_size;
+
+				for (int kk=2; kk<64; kk*=2) {
+					if ( ((t_fpt / kk) < cache_size ) && (kk < block_size) ) {
+						tfactor = kk;
+						w_limiter = std::to_string(block_size / tfactor);
+						if (!tfactor) {
+							std::cout << "footprints is too large" << std::endl;
+						}
+					}
+				}
+
+				std::string thr_str = "\nint TID = (threadIdx.x+threadIdx.y*blockDim.x+threadIdx.z*blockDim.y*blockDim.x);\nfor(int tt_iter=0; tt_iter<"+std::to_string(tfactor)+"; tt_iter++)\nif (TID/32 >= tt_iter*"+w_limiter+" && TID/32 < (tt_iter+1)*"+w_limiter+") {\n";
+				Rewrite.InsertText(ForLoop->getBeginLoc().getLocWithOffset(-1), "/* throttling start */"+thr_str, true, true);
+				Rewrite.InsertText(ForLoop->getEndLoc().getLocWithOffset(1), "\n} /* throttling end */", true, true);
 			}
 		}
 	}
@@ -223,6 +246,8 @@ private:
   std::map<ForStmt *, bool> hasIterVar;
   bool isGlobalVar;
   bool isGPUKernel;
+
+  int n_warps_block;
 };
 
 // Implementation of the ASTConsumer interface for reading an AST produced
@@ -231,6 +256,9 @@ private:
 class MyASTConsumer : public ASTConsumer {
 public:
   MyASTConsumer(Rewriter &R) : HandlerForTT(R) {
+	Matcher.addMatcher(
+		cudaKernelCallExpr().bind("cudaCall"),
+	&HandlerForTT);
 	// to distiguish cuda function and others
 	Matcher.addMatcher(
 		functionDecl().bind("funcDecl"),
