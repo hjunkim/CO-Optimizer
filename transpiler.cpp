@@ -118,15 +118,47 @@ public:
 		}
 		// visit each var in array index
 		if (const Expr *t = Result.Nodes.getNodeAs<Expr>("pattern1")) {
-			std::cout << "\tpattern 1: " << std::endl;
+			// std::cout << "\tpattern 1: " << std::endl;
 			footprints[ForLoop] += 1;
 		}
 		// [tid * N .. ]
 		if (const DeclRefExpr *t = Result.Nodes.getNodeAs<DeclRefExpr>("pattern2_1")) {
 			for (int is=0; is<tidVar.size(); is++) {
 				if (t->getNameInfo().getAsString() == tidVar[is]) {
-					std::cout << t->getNameInfo().getAsString() << "\tpattern 2: * tid var" << std::endl;
+					// std::cout << t->getNameInfo().getAsString() << "\tpattern 2: * tid var" << std::endl;
 					// check its coefficient
+					auto iParents = Result.Context->getParents(*t);
+					const auto *t_implicitCastExpr = iParents[0].get<ImplicitCastExpr>();
+					auto bParents = Result.Context->getParents(*t_implicitCastExpr);
+					const auto *t_binaryOperator = bParents[0].get<BinaryOperator>();
+				
+					auto *t_child = t_binaryOperator->getLHS();
+					if (t_child == t_implicitCastExpr) {
+						t_child = t_binaryOperator->getRHS();
+						// std::cout << "\t\tRHS(), !LHS()<< std::endl;
+					}
+					// parenthesis?
+					if (const auto *Cast = dyn_cast<ParenExpr>(t_child)) {
+						std::cout << "\t-ParenExpr" << std::endl;
+					}
+					else if (const auto *Cast = dyn_cast<ImplicitCastExpr>(t_child)) {
+						std::cout << "\t-ImplicitCastExpr" << std::endl;
+					}
+					else if (const auto *Cast = dyn_cast<IntegerLiteral>(t_child)) {
+						int t_int = Cast->getValue().getLimitedValue();
+						std::cout << "\t-IntegerLiteral: " << t_int << std::endl;
+						if (t_int > 32) t_int = 32;
+						footprints[ForLoop] += t_int;
+					}
+					else if (const auto *Cast = dyn_cast<FloatingLiteral>(t_child)) {
+						float t_float = Cast->getValue().convertToFloat();
+						std::cout << "\t-FloatingLiteral: " << t_float << std::endl;
+						if (t_float > 32.0) t_float = 32.0;
+						footprints[ForLoop] += t_float;
+					}
+					else {
+						std::cout << "\t-Unknown child" << std::endl;
+					}
 				}
 			}
 			
@@ -135,7 +167,7 @@ public:
 		if (const DeclRefExpr *t = Result.Nodes.getNodeAs<DeclRefExpr>("pattern2_2")) {
 			for (int is=0; is<tidVar.size(); is++) {
 				if (t->getNameInfo().getAsString() == tidVar[is]) {
-					std::cout << t->getNameInfo().getAsString() << "\tpattern 2: +/- and tid var" << std::endl;
+					// std::cout << t->getNameInfo().getAsString() << "\tpattern 2: +/- and tid var" << std::endl;
 					footprints[ForLoop] += 1;
 				}
 			}
@@ -159,12 +191,14 @@ public:
 			ForLoop = const_cast<ForStmt*>(t_ForLoop);
 
 			// debug code - properly record footprints and iterVar?
-			// for (auto is=footprints.begin(); is!=footprints.end(); is++) {
-			std::cout << "\t\tfootprints-Key: " << ForLoop << "- Value: " << footprints[ForLoop] << std::endl;
-			//}
-			// for (auto is=hasIterVar.begin(); is!=hasIterVar.end(); is++) {
-			std::cout << "\t\thasIterVar-Key: " << ForLoop << "- Value: " << hasIterVar[ForLoop] << std::endl;
-			//}
+			/* 
+			for (auto is=footprints.begin(); is!=footprints.end(); is++) {
+				std::cout << "\t\tfootprints-Key: " << ForLoop << "- Value: " << footprints[ForLoop] << std::endl;
+			}
+			for (auto is=hasIterVar.begin(); is!=hasIterVar.end(); is++) {
+				std::cout << "\t\thasIterVar-Key: " << ForLoop << "- Value: " << hasIterVar[ForLoop] << std::endl;
+			}
+			*/
 
 			// cache size --> cmdline parameter?, if hasIterVar is set
 			if (footprints[ForLoop] > 256 && hasIterVar[ForLoop]) {
