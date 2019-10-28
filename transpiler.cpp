@@ -22,6 +22,10 @@
 #include "clang/Tooling/Tooling.h"
 #include "llvm/Support/raw_ostream.h"
 
+// user defined parameters
+#define BLOCK_SIZE 8
+#define CACHE_SIZE 256 // 32KB (cache size) * 1024B / 128B (cache line size)
+
 using namespace clang;
 using namespace clang::ast_matchers;
 using namespace clang::driver;
@@ -206,19 +210,16 @@ public:
 			// cache size --> cmdline parameter?, if hasIterVar is set
 			if (footprints[ForLoop] > 32 && hasIterVar[ForLoop]) {
 				// cache contention --> rewrite ForStmt
-				n_warps_block = 8;
-				int cache_size = 256; // 32*1024/128 = 256 cache lines
-				int block_size = n_warps_block;
 
 				int tfactor = 0;
 				std::string w_limiter;
 
-				int t_fpt = footprints[ForLoop] * block_size;
+				int t_fpt = footprints[ForLoop] * BLOCK_SIZE;
 
 				for (int kk=2; kk<64; kk*=2) {
-					if ( ((t_fpt / kk) < cache_size ) && (kk < block_size) ) {
+					if ( ((t_fpt / kk) < CACHE_SIZE ) && (kk < BLOCK_SIZE) ) {
 						tfactor = kk;
-						w_limiter = std::to_string(block_size / tfactor);
+						w_limiter = std::to_string(BLOCK_SIZE / tfactor);
 						if (!tfactor) {
 							std::cout << "footprints is too large" << std::endl;
 						}
@@ -246,8 +247,6 @@ private:
   std::map<ForStmt *, bool> hasIterVar;
   bool isGlobalVar;
   bool isGPUKernel;
-
-  int n_warps_block;
 };
 
 // Implementation of the ASTConsumer interface for reading an AST produced
