@@ -23,8 +23,9 @@
 #include "llvm/Support/raw_ostream.h"
 
 // user defined parameters
-#define BLOCK_SIZE 8
-#define CACHE_SIZE 256 // 32KB (cache size) * 1024B / 128B (cache line size)
+int BLOCK_SIZE = 8;	// 8 warps per thread block
+int N_BLOCKS_SM = 4;	// 8 blocks per SM
+#define CACHE_SIZE 256 	// 32KB (cache size) * 1024B / 128B (cache line size)
 
 using namespace clang;
 using namespace clang::ast_matchers;
@@ -76,6 +77,27 @@ public:
 			footprints.erase(ForLoop);
 			hasIterVar.erase(ForLoop);
 
+		}
+
+		// visit variable assignment with integer value, 
+		// int i=0;
+    	if (const IntegerLiteral *t_var = Result.Nodes.getNodeAs<IntegerLiteral>("integerVar0")) {
+			auto Parents = Result.Context->getParents(*t_var);
+			const auto *t_varDecl = Parents[0].get<VarDecl>();
+			std::string varName = t_varDecl->getNameAsString();
+			varAss[varName] = t_var->getValue().getLimitedValue(); // varAss(name, value);
+
+			// std::cout << "var: " << varName << "=" << t_var->getValue().getLimitedValue() << std::endl;
+		}
+		// int j; j=0;
+    	if (const IntegerLiteral *t_var = Result.Nodes.getNodeAs<IntegerLiteral>("integerVar1")) {
+			auto Parents = Result.Context->getParents(*t_var);
+			const auto *t_binaryOperator = Parents[0].get<BinaryOperator>();
+			auto *t_child = t_binaryOperator->getLHS();
+			const auto *Cast = dyn_cast<DeclRefExpr>(t_child);
+			std::string varName = Cast->getNameInfo().getAsString();
+
+			// std::cout << "var: " << varName << "=" << t_var->getValue().getLimitedValue() << std::endl;
 		}
 
 		// visit Parameter variable lists (they are global variables we are targeting on!!!)
@@ -214,11 +236,11 @@ public:
 				int tfactor = 0;
 				std::string w_limiter;
 
-				int t_fpt = footprints[ForLoop] * BLOCK_SIZE;
+				int t_fpt = footprints[ForLoop] * BLOCK_SIZE * N_BLOCKS_SM;
 
-				for (int kk=2; kk<64; kk*=2) {
-					if ( ((t_fpt / kk) < CACHE_SIZE ) && (kk < BLOCK_SIZE) ) {
-						tfactor = kk;
+				for (int warps_divider=2; warps_divider<64; warps_divider*=2) {
+					if ( ((t_fpt / warps_divider) < CACHE_SIZE ) && (warps_divider < BLOCK_SIZE) ) {
+						tfactor = warps_divider;
 						w_limiter = std::to_string(BLOCK_SIZE / tfactor);
 						if (!tfactor) {
 							std::cout << "footprints is too large" << std::endl;
@@ -244,6 +266,7 @@ private:
   std::vector<std::string> parmVarName;
   std::vector<std::string> tidVar;
   std::map<ForStmt *, int> footprints;
+  std::map<std::string, int> varAss;
   std::map<ForStmt *, bool> hasIterVar;
   bool isGlobalVar;
   bool isGPUKernel;
@@ -266,6 +289,17 @@ public:
 	// to collect global variables
 	Matcher.addMatcher(
 		parmVarDecl().bind("parmVarDecl"),
+	&HandlerForTT);
+
+	Matcher.addMatcher(
+		varDecl(has(integerLiteral().bind("integerVar0"))),
+	&HandlerForTT);
+
+	Matcher.addMatcher(
+		binaryOperator(
+			hasOperatorName("="), 
+			has(integerLiteral().bind("integerVar1"))
+		),
 	&HandlerForTT);
 
 	// find threadIdx.x
@@ -301,14 +335,13 @@ public:
 					declRefExpr(hasParent(implicitCastExpr(
 						hasParent(binaryOperator(hasOperatorName("*")))))
 					).bind("pattern2_1")
-				) // array[var + ..]
+				)
 			),
 			hasAncestor(forStmt())
 		),
 	&HandlerForTT);
 	Matcher.addMatcher(
 		arraySubscriptExpr(
-			// hasIndex(binaryOperator().bind("pattern2")) // array[var * N + ..]
 			forEachDescendant(
 				declRefExpr(
 					hasParent(implicitCastExpr(hasParent(binaryOperator(
@@ -317,7 +350,7 @@ public:
 							hasOperatorName("-")
 						)
 				))))).bind("pattern2_2")
-			), // array[var + ..]
+			),
 			hasAncestor(forStmt())
 		),
 	&HandlerForTT);
@@ -340,7 +373,6 @@ public:
   }
 
 private:
-  // added Matcher by hjkim
   ForStmtHandler HandlerForTT;
   MatchFinder Matcher;
 };
