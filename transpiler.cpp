@@ -25,6 +25,7 @@
 // user defined parameters
 int BLOCK_SIZE = 8;	// 8 warps per thread block
 int N_BLOCKS_SM = 4;	// 8 blocks per SM
+int WARPS_SM = 8*4;
 #define CACHE_SIZE 256 	// 32KB (cache size) * 1024B / 128B (cache line size)
 
 using namespace clang;
@@ -84,6 +85,7 @@ public:
     	if (const IntegerLiteral *t_var = Result.Nodes.getNodeAs<IntegerLiteral>("integerVar0")) {
 			auto Parents = Result.Context->getParents(*t_var);
 			const auto *t_varDecl = Parents[0].get<VarDecl>();
+
 			std::string varName = t_varDecl->getNameAsString();
 			varAss[varName] = t_var->getValue().getLimitedValue(); // varAss(name, value);
 
@@ -95,8 +97,8 @@ public:
 			const auto *t_binaryOperator = Parents[0].get<BinaryOperator>();
 			auto *t_child = t_binaryOperator->getLHS();
 			const auto *Cast = dyn_cast<DeclRefExpr>(t_child);
-			std::string varName = Cast->getNameInfo().getAsString();
 
+			std::string varName = Cast->getNameInfo().getAsString();
 			// std::cout << "var: " << varName << "=" << t_var->getValue().getLimitedValue() << std::endl;
 		}
 
@@ -171,17 +173,31 @@ public:
 						// std::cout << "\t\tRHS(), !LHS()<< std::endl;
 					}
 					// parenthesis?
-					if (const auto *Cast = dyn_cast<ParenExpr>(t_child)) {
+					if (const auto *Cast = dyn_cast<ParenExpr>(t_child)) { 				// [tid * (..)]
 						std::cout << "\t-ParenExpr" << std::endl;
 					}
-					else if (const auto *Cast = dyn_cast<ImplicitCastExpr>(t_child)) {
+					else if (auto *Cast = dyn_cast<ImplicitCastExpr>(t_child)) { 		// [tid * i]
 						std::cout << "\t-ImplicitCastExpr" << std::endl;
+						Stmt::child_iterator ci=Cast->child_begin();
+						auto *cd = dyn_cast<DeclRefExpr>(*ci);
+						if (!cd) {
+							std::cout << "Unknown status." << std::endl;
+						}
+						std::string t_def = cd->getNameInfo().getAsString();
+						std::cout << "\t\t-" << t_def << std::endl;
+						// if the variable is not known at compile time, footprints += 1
+						if (varAss[t_def]) {
+							footprints[ForLoop] += (varAss[t_def] * WARPS_SM);
+						}
+						else {
+							footprints[ForLoop] += 1;
+						}
 					}
-					else if (const auto *Cast = dyn_cast<IntegerLiteral>(t_child)) {
+					else if (const auto *Cast = dyn_cast<IntegerLiteral>(t_child)) {	// [tid * 7]
 						int t_int = Cast->getValue().getLimitedValue();
 						std::cout << "\t-IntegerLiteral: " << t_int << std::endl;
 						if (t_int > 32) t_int = 32;
-						footprints[ForLoop] += t_int;
+						footprints[ForLoop] += (t_int * WARPS_SM);
 					}
 					/*else if (const auto *Cast = dyn_cast<FloatingLiteral>(t_child)) {
 						float t_float = Cast->getValue().convertToFloat();
@@ -236,7 +252,7 @@ public:
 				int tfactor = 0;
 				std::string w_limiter;
 
-				int t_fpt = footprints[ForLoop] * BLOCK_SIZE * N_BLOCKS_SM;
+				int t_fpt = footprints[ForLoop];
 
 				for (int warps_divider=2; warps_divider<64; warps_divider*=2) {
 					if ( ((t_fpt / warps_divider) < CACHE_SIZE ) && (warps_divider < BLOCK_SIZE) ) {
