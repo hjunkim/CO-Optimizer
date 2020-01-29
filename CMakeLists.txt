@@ -1,6 +1,6 @@
 set(LLVM_LINK_COMPONENTS support)
-add_clang_executable(transpiler transpiler.cpp)
-target_link_libraries(transpiler PRIVATE clangFrontend
+add_clang_executable(throttling throttling.cpp)
+target_link_libraries(throttling PRIVATE clangFrontend
   clangDriver clangTooling clangFrontendTool
   clangSerialization clangCodeGen clangParse
   clangSema clangStaticAnalyzerFrontend

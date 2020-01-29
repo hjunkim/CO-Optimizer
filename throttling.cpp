@@ -1,41 +1,4 @@
-//------------------------------------------------------------------------------
-// AST matching sample. Demonstrates:
-//
-// * How to write a simple source tool using libTooling.
-// * How to use AST matchers to find interesting AST nodes.
-// * How to use the Rewriter API to rewrite the source code.
-//
-// Eli Bendersky (eliben@gmail.com)
-// This code is in the public domain
-//------------------------------------------------------------------------------
-#include <string>
-#include <iostream>
-
-#include "clang/AST/AST.h"
-#include "clang/AST/ASTConsumer.h"
-#include "clang/ASTMatchers/ASTMatchFinder.h"
-#include "clang/ASTMatchers/ASTMatchers.h"
-#include "clang/Frontend/CompilerInstance.h"
-#include "clang/Frontend/FrontendActions.h"
-#include "clang/Rewrite/Core/Rewriter.h"
-#include "clang/Tooling/CommonOptionsParser.h"
-#include "clang/Tooling/Tooling.h"
-#include "llvm/Support/raw_ostream.h"
-
-// user defined parameters
-int BLOCK_SIZE = 8;	// 8 warps per thread block
-int N_BLOCKS_SM = 4;	// 8 blocks per SM
-int WARPS_SM = 8*4;
-#define CACHE_SIZE 256 	// 32KB (cache size) * 1024B / 128B (cache line size)
-
-using namespace clang;
-using namespace clang::ast_matchers;
-using namespace clang::driver;
-using namespace clang::tooling;
-
-static llvm::cl::OptionCategory MatcherSampleCategory("Matcher Sample");
-
-bool isSecCall = false;
+#include "transpiler.h"
 
 class ForStmtHandler : public MatchFinder::MatchCallback {
 public:
@@ -291,9 +254,9 @@ private:
 // Implementation of the ASTConsumer interface for reading an AST produced
 // by the Clang parser. It registers a couple of matchers and runs them on
 // the AST.
-class MyASTConsumer : public ASTConsumer {
+class ThrottlingASTConsumer : public ASTConsumer {
 public:
-  MyASTConsumer(Rewriter &R) : HandlerForTT(R) {
+  ThrottlingASTConsumer(Rewriter &R) : HandlerForTT(R) {
 	Matcher.addMatcher(
 		cudaKernelCallExpr().bind("cudaCall"),
 	&HandlerForTT);
@@ -394,9 +357,9 @@ private:
 };
 
 // For each source file provided to the tool, a new FrontendAction is created.
-class MyFrontendAction : public ASTFrontendAction {
+class ThrottlingAction : public ASTFrontendAction {
 public:
-  MyFrontendAction() {}
+  ThrottlingAction() {}
   void EndSourceFileAction() override {
     
     TheRewriter.getEditBuffer(TheRewriter.getSourceMgr().getMainFileID()).write(llvm::outs());
@@ -405,8 +368,8 @@ public:
   std::unique_ptr<ASTConsumer> CreateASTConsumer(CompilerInstance &CI, 
 		  				StringRef file) override {
     TheRewriter.setSourceMgr(CI.getSourceManager(), CI.getLangOpts());
-    return llvm::make_unique<MyASTConsumer>(TheRewriter);
-    // c++14 feature, return std::make_unique<MyASTConsumer>(TheRewriter);
+    return llvm::make_unique<ThrottlingASTConsumer>(TheRewriter);
+    // c++14 feature, return std::make_unique<ThrottlingASTConsumer>(TheRewriter);
   }
 
 private:
@@ -414,8 +377,8 @@ private:
 };
 
 int main(int argc, const char **argv) {
-  CommonOptionsParser op(argc, argv, MatcherSampleCategory);
-  ClangTool Tool(op.getCompilations(), op.getSourcePathList());
+	CommonOptionsParser op(argc, argv, MatcherSampleCategory);
+	ClangTool Tool(op.getCompilations(), op.getSourcePathList());
 
-  return Tool.run(newFrontendActionFactory<MyFrontendAction>().get());
+	return Tool.run(newFrontendActionFactory<ThrottlingAction>().get());
 }
