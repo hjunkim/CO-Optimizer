@@ -1,7 +1,10 @@
 // hjunkim@skku.edu
+// This program requires boost library
+// Ubuntu: sudo apt-get install libboost-all-dev
 
 #include <string>
 #include <iostream>
+#include <boost/tokenizer.hpp>
 
 #include "clang/AST/AST.h"
 #include "clang/AST/ASTConsumer.h"
@@ -14,17 +17,26 @@
 #include "clang/Tooling/Tooling.h"
 #include "llvm/Support/raw_ostream.h"
 
-// user defined parameters
-int BLOCK_SIZE = 8;	// 8 warps per thread block
-int N_BLOCKS_SM = 4;	// 8 blocks per SM
-int WARPS_SM = 8*4;
-#define CACHE_SIZE 256 	// 32KB (cache size) * 1024B / 128B (cache line size)
+#define PDBG(tstr) \
+		std::cout << "// DEBUG: " << tstr << std::endl;
+
+typedef boost::tokenizer<boost::char_separator<char> > tokenizer;
 
 using namespace clang;
 using namespace clang::ast_matchers;
 using namespace clang::driver;
 using namespace clang::tooling;
 
-static llvm::cl::OptionCategory MatcherSampleCategory("Matcher Sample");
+static llvm::cl::OptionCategory MatcherSampleCategory("Throttling Transpiler");
+static llvm::cl::opt<int> op_blksize("tbsize", llvm::cl::desc("<tbsize> : set thread block size (default: 8 warps)"),
+                            llvm::cl::init(8), llvm::cl::cat(MatcherSampleCategory));
+static llvm::cl::opt<int> op_nblks("nblks", llvm::cl::desc("<nblks> : set # of thread blocks per SM (default: 4 blks)"),
+                            llvm::cl::init(4), llvm::cl::cat(MatcherSampleCategory));
+static llvm::cl::opt<int> op_csize("csize", llvm::cl::desc("<csize> : set L1 cache size of a GPU (default: 32 KB)"),
+                            llvm::cl::init(32), llvm::cl::cat(MatcherSampleCategory));
+
+// user defined parameters
+int WARPS_SM = op_blksize*op_nblks;
+int CACHE_SIZE = op_csize * 1024 / 128; // 1024: KB --> B, 128: cache line size: 128B
 
 bool isSecCall = false;
