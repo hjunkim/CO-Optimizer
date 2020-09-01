@@ -45,8 +45,10 @@ $ sudo make install
 ### Tested on Machines with following settings
 
 ```bash
-# Ubuntu 18.04, gcc/g++ 5.5 is used
-$ sudo apt-get install build-essential gcc-5 g++-5 cmake
+# Ubuntu 18.04, gcc/g++ 5.5 is tested
+$ sudo apt install build-essential gcc-5 g++-5 cmake
+# boost/tokenizer library is used
+$ sudo apt install libboost-all-dev
 ```
 
 ## Run
