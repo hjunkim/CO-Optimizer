@@ -67,9 +67,11 @@ $ transpiler cuda_program.cu -- --cuda-device-only --cuda-path=/usr/local/cuda -
 ### Run Options
 Throttling Transpiler:
 
+```bash
   --csize=<int>               - <csize> : set L1 cache size of a GPU (default: 32 KB)
   --extra-arg=<string>        - Additional argument to append to the compiler command line
   --extra-arg-before=<string> - Additional argument to prepend to the compiler command line
   --nblks=<int>               - <nblks> : set # of thread blocks per SM (default: 4 blks)
   -p=<string>                 - Build path
   --tbsize=<int>              - <tbsize> : set thread block size (default: 8 warps)
+```
