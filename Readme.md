@@ -1,5 +1,8 @@
 # Transpiler (TBD)
-Clang based (ASTMatcher, Rewriter) source-to-source transpiler for CUDA applications.
+LLVM/Clang based (ASTMatcher, Rewriter) source-to-source transpiler for CUDA applications.
+
+If you use or build on this tool, please cite the following papers.
+- Throttling ([ICPP'19](https://dl.acm.org/doi/10.1145/3337821.3337886)), Preloading ([CCPE'20](https://onlinelibrary.wiley.com/doi/full/10.1002/cpe.5512))
 
 ## Getting the Source Code and Building Transpiler
 This is an example work-flow and configuration to get and build the Transpiler.
