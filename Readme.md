@@ -31,8 +31,7 @@ This is an example work-flow and configuration to get and build the Transpiler.
 2. Build them
 	* Add Transpiler repositories to CMakeLists.txt
 		* ``add_clang_subdirectory(transpiler-throttling)``
-		* ``add_clang_subdirectory(transpiler-preloading)
-	* ``cd ../../;mkdir build;cd build``
+	* ``cd ~;mkdir build;cd build``
 	* ``cmake -G "Unix Makefiles" ../llvm``
 	* ``make -j 16;sudo make install``
 
