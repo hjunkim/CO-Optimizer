@@ -40,9 +40,9 @@ This is an example work-flow and configuration to get and build the Transpiler.
 * ``{bin} {cuda_program}.cu -- --cuda-device-only --cuda-path={path/to/cuda} --cuda-gpu-arch={sm_xx} [options]``
 	* ``{bin}`` --- ``./llvm-project/build/bin/{throttling/preloading}``
 	* ``{cuda_program}.cu`` --- your program
-	* ``--cuda-device-only`` --- will run only analysis/translate device code
-	* ``--cuda-path=`` --- CUDA path (ex: /usr/local/cuda)
-	* ``--cuda-gpu-arch=sm_xx`` --- CUDA architecture (ex: Titan V, V100: sm\_70)
+	* ``--cuda-device-only`` --- will run only analysis/translate for the device code
+	* ``--cuda-path=`` --- installed CUDA path (ex: /usr/local/cuda)
+	* ``--cuda-gpu-arch=sm_xx`` --- [CUDA architecture](https://en.wikipedia.org/wiki/CUDA) (ex: Titan V, V100: sm\_70)
 
 ### Run Options
 * Throttling:
