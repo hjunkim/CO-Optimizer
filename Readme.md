@@ -15,10 +15,11 @@ This is an example work-flow and configuration to get and build the Transpiler.
 1. Checkout llvm, clang, and transpiler
 	* llvm
 		* ``git clone http://github.com/llvm-mirror/llvm``
-		* ``cd llvm-project``
+		* ``cd llvm``
 		* ``git checkout release_80``
 
 	* clang
+		* ``cd tools;``
 		* ``git clone http://github.com/llvm-mirror/clang``
 		* ``cd clang;``
 		* ``git checkout release_80``
@@ -26,7 +27,6 @@ This is an example work-flow and configuration to get and build the Transpiler.
 	* transpiler
 		* ``cd tools``
 		* ``git clone github.com/hjunkim/transpiler-throttling``
-		* ``git clone github.com/hjunkim/transpiler-preloading``
 
 2. Build them
 	* Add Transpiler repositories to CMakeLists.txt
