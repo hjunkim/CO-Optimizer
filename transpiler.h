@@ -27,7 +27,9 @@ using namespace clang::ast_matchers;
 using namespace clang::driver;
 using namespace clang::tooling;
 
-static llvm::cl::OptionCategory MatcherSampleCategory("Throttling Transpiler");
+static llvm::cl::OptionCategory MatcherSampleCategory("Transpiler");
+
+// Throttling
 static llvm::cl::opt<int> op_blksize("tbsize", llvm::cl::desc("<tbsize> : set thread block size (default: 8 warps)"),
                             llvm::cl::init(8), llvm::cl::cat(MatcherSampleCategory));
 static llvm::cl::opt<int> op_nblks("nblks", llvm::cl::desc("<nblks> : set # of thread blocks per SM (default: 4 blks)"),
@@ -35,8 +37,21 @@ static llvm::cl::opt<int> op_nblks("nblks", llvm::cl::desc("<nblks> : set # of t
 static llvm::cl::opt<int> op_csize("csize", llvm::cl::desc("<csize> : set L1 cache size of a GPU (default: 32 KB)"),
                             llvm::cl::init(32), llvm::cl::cat(MatcherSampleCategory));
 
-// user defined parameters
+// Preloading
+// static llvm::cl::opt<std::string> op_blksize("tbsize", llvm::cl::desc("<tbsize> : set thread block size (default: 256)"),
+//                             llvm::cl::init("256"), llvm::cl::cat(MatcherSampleCategory));
+static llvm::cl::opt<std::string> op_prdsize("prdsize", llvm::cl::desc("<prdsize> : set preloading size (default: 1)"),
+                            llvm::cl::init("1"), llvm::cl::cat(MatcherSampleCategory));
+
+bool isSecCall = false;
+bool isTrdCall = false;
+
+// Throttling -- user defined parameters
 int WARPS_SM = op_blksize*op_nblks;
 int CACHE_SIZE = op_csize * 1024 / 128; // 1024: KB --> B, 128: cache line size: 128B
 
-bool isSecCall = false;
+// Preloading -- user defined parameters
+std::string blksize;
+std::string prdsize;
+std::string allocsize;
+
