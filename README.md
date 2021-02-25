@@ -37,10 +37,10 @@ This is an example work-flow and configuration to get and build the Transpiler.
 	* ``make -j 16;sudo make install``
 
 ## Usage
-* ``{bin} {cuda_program}.cu -- --cuda-device-only --cuda-path={path/to/cuda} --cuda-gpu-arch={sm_xx} [options]``
-	* ``{bin}`` --- ``./llvm/build/bin/{throttling/preloading}``
+* ``{bin} {cuda_program}.cu [Run Options] -- --cuda-device-only --cuda-path={path/to/cuda} --cuda-gpu-arch={sm_xx}``
+	* ``{bin}`` --- ``./build/bin/{throttling/preloading}``
 	* ``{cuda_program}.cu`` --- your target CUDA program
-	* ``--cuda-device-only`` --- will run only analysis/translate for the device code
+	* ``--cuda-device-only`` --- will run analysis/translate for the device code
 	* ``--cuda-path=`` --- installed CUDA path (ex: /usr/local/cuda)
 	* ``--cuda-gpu-arch=sm_xx`` --- [CUDA architecture](https://en.wikipedia.org/wiki/CUDA) (ex: Titan V, V100: sm\_70)
 
@@ -54,8 +54,8 @@ This is an example work-flow and configuration to get and build the Transpiler.
 	* ``-p=<string>``                 - Build path
 
 * Preloading	
+	* ``--prdsize=<string>``          - <prdsize> : set preloading size (default: 1)
+	* ``--tbsize=<string>``           - <tbsize> : set thread block size (default: 256)
 	* ``--extra-arg=<string>``        - Additional argument to append to the compiler command line
 	* ``--extra-arg-before=<string>`` - Additional argument to prepend to the compiler command line
 	* ``-p=<string>``                 - Build path
-	* ``--prdsize=<string>``          - <prdsize> : set preloading size (default: 1)
-	* ``--tbsize=<string>``           - <tbsize> : set thread block size (default: 256)
