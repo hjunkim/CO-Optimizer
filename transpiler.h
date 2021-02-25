@@ -38,10 +38,8 @@ static llvm::cl::opt<int> op_csize("csize", llvm::cl::desc("<csize> : set L1 cac
                             llvm::cl::init(32), llvm::cl::cat(MatcherSampleCategory));
 
 // Preloading
-// static llvm::cl::opt<std::string> op_blksize("tbsize", llvm::cl::desc("<tbsize> : set thread block size (default: 256)"),
-//                             llvm::cl::init("256"), llvm::cl::cat(MatcherSampleCategory));
-static llvm::cl::opt<std::string> op_prdsize("prdsize", llvm::cl::desc("<prdsize> : set preloading size (default: 1)"),
-                            llvm::cl::init("1"), llvm::cl::cat(MatcherSampleCategory));
+static llvm::cl::opt<int> op_prdsize("prdsize", llvm::cl::desc("<prdsize> : set preloading size (default: 1)"),
+                            llvm::cl::init(1), llvm::cl::cat(MatcherSampleCategory));
 
 bool isSecCall = false;
 bool isTrdCall = false;
@@ -51,7 +49,7 @@ int WARPS_SM = op_blksize*op_nblks;
 int CACHE_SIZE = op_csize * 1024 / 128; // 1024: KB --> B, 128: cache line size: 128B
 
 // Preloading -- user defined parameters
-std::string blksize;
-std::string prdsize;
-std::string allocsize;
+int blksize;
+int prdsize;
+int allocsize;
 

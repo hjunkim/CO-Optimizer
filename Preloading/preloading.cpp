@@ -152,7 +152,7 @@ public:
 							if ((*tok == iterVar[ArrayVar])) {
 								sharedStore[ArrayVar] += "threadIdx.x";
 								globalLoad[ArrayVar] += "threadIdx.x";
-								sharedLoad[ArrayVar] += "("+*tok+"%("+allocsize+"))";
+								sharedLoad[ArrayVar] += "("+*tok+"%("+std::to_string(allocsize)+"))";
 							}
 							// 		- if tok == threadIdx.x
 							else if ((*tok == "threadIdx.x")) {
@@ -199,15 +199,15 @@ public:
 						datatype.erase(datatype.find('['));
 					}
 
-					sharedStore[ArrayVar] += "+(ii*"+blksize+")";
-					globalLoad[ArrayVar] += "+(ii*"+blksize+")";
+					sharedStore[ArrayVar] += "+(ii*"+std::to_string(blksize)+")";
+					globalLoad[ArrayVar] += "+(ii*"+std::to_string(blksize)+")";
 
 					// replace x[i] --> sss[i%blockDim.x]
 					Rewrite.ReplaceText(t_array->getBeginLoc(), Rewrite.getRangeSize(t_array->getSourceRange()), 
 											"sss["+sharedLoad[ArrayVar]+"]");
 
 					// shared memory allocation code
-					std::string sa_str = "\n__shared__ "+datatype+" sss["+allocsize+"];\n";
+					std::string sa_str = "\n__shared__ "+datatype+" sss["+std::to_string(allocsize)+"];\n";
 					Rewrite.InsertText(ForLoop->getBeginLoc().getLocWithOffset(-1), sa_str, false, true);
 
 					bool hasCompoundBody = false;
@@ -225,8 +225,8 @@ public:
 					else
 						pr_str +=  "{\n/* preloading code added (base["+arrayIdx[ArrayVar]+"])...*/\n";
 					
-					pr_str += "if ("+iterVar[ArrayVar]+"%"+allocsize+"==0) {\n";
-					pr_str += "\tfor(int ii=0; ii<"+prdsize+"; ii++) {\n\t";
+					pr_str += "if ("+iterVar[ArrayVar]+"%"+std::to_string(allocsize)+"==0) {\n";
+					pr_str += "\tfor(int ii=0; ii<"+std::to_string(prdsize)+"; ii++) {\n\t";
 					pr_str += "\tsss["+sharedStore[ArrayVar]+"] = "+arrayBase[ArrayVar];
 					pr_str += "["+globalLoad[ArrayVar]+"];\n}\n\t__syncthreads();\n}\n";
 					pr_str += "/* preloading code ended...*/\n";
@@ -380,14 +380,14 @@ int main(int argc, const char **argv) {
 		llvm::errs() << "Thread block size is set to default (256)";
 	}*/
 	// llvm::errs() << "Thread block size is set to " << opblksize << std::endl;
-	blksize = op_blksize;
+	blksize = op_blksize * 32;
 	prdsize = op_prdsize;
 
-	PDBG("Thread block size : " + blksize)
-	PDBG("Preload size : " + prdsize)
+	PDBG("Thread block size : " + std::to_string(blksize))
+	PDBG("Preload size : " + std::to_string(prdsize))
 
 	// shared memory allocation size, [256*1]
-	allocsize = std::to_string ( stoi(blksize) * stoi(prdsize) );
+	allocsize = blksize * prdsize;
 
 	return Tool.run(newFrontendActionFactory<PreloadingAction>().get());
 }

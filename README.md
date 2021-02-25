@@ -55,7 +55,7 @@ This is an example work-flow and configuration to get and build the Transpiler.
 
 * Preloading	
 	* ``--prdsize=<string>``          - <prdsize> : set preloading size (default: 1)
-	* ``--tbsize=<string>``           - <tbsize> : set thread block size (default: 256)
+	* ``--tbsize=<string>``           - <tbsize> : set thread block size (default: 8 warps)
 	* ``--extra-arg=<string>``        - Additional argument to append to the compiler command line
 	* ``--extra-arg-before=<string>`` - Additional argument to prepend to the compiler command line
 	* ``-p=<string>``                 - Build path
