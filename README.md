@@ -1,5 +1,5 @@
-# Transpiler (TBD)
-LLVM/Clang based (ASTMatcher, Rewriter) source-to-source transpiler for CUDA applications.
+# Code-level On-chip Memory Optimizer
+This project gives an opportunity to optimize space-limited on-chip memories (L1, shared memory) of your CUDA applications.
 
 If you use or build on this tool, please cite the following papers.
 - Throttling ([ICPP'19](https://dl.acm.org/doi/10.1145/3337821.3337886)), Preloading ([CCPE'20](https://onlinelibrary.wiley.com/doi/full/10.1002/cpe.5512))
@@ -37,6 +37,7 @@ This is an example work-flow and configuration to get and build the Transpiler.
 	* ``make -j 16;sudo make install``
 
 ## Usage
+### Run
 * ``{bin} {cuda_program}.cu [Run Options] -- --cuda-device-only --cuda-path={path/to/cuda} --cuda-gpu-arch={sm_xx}``
 	* ``{bin}`` --- ``./build/bin/{throttling/preloading}``
 	* ``{cuda_program}.cu`` --- your target CUDA program
