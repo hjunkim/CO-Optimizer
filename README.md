@@ -1,4 +1,4 @@
-# COM-Optimizer: Code-level On-chip Memory Optimizer
+# CO-Optimizer: Code-level On-chip memory Optimizer
 This project gives an opportunity to optimize space-limited on-chip memories (L1, shared memory) of your CUDA applications.
 
 If you use or build on this tool, please cite the following papers.
