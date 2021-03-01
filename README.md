@@ -2,7 +2,8 @@
 This project gives an opportunity to optimize space-limited on-chip memories (L1, shared memory) of your CUDA applications.
 
 If you use or build on this tool, please cite the following papers.
-- Throttling ([ICPP'19](https://dl.acm.org/doi/10.1145/3337821.3337886)), Preloading ([CCPE'20](https://onlinelibrary.wiley.com/doi/full/10.1002/cpe.5512))
+- Throttling for L1 cache contention reduction ([ICPP'19](https://dl.acm.org/doi/10.1145/3337821.3337886))
+- Preloading in the shared memory by using memory-inactive threads ([CCPE'20](https://onlinelibrary.wiley.com/doi/full/10.1002/cpe.5512))
 
 ## Getting the Source Code and Building the On-chip Memory Optimizer
 This is an example work-flow and configuration to get and build the Transpiler.
