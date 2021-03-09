@@ -14,25 +14,25 @@ This is an example work-flow and configuration to get and build the Transpiler.
 	* ``sudo apt install libboost-all-dev``
 	* Benchmark -- [PolyBench/GPU](http://web.cse.ohio-state.edu/~pouchet.2/software/polybench/GPU/) and [Rodinia](http://www.cs.virginia.edu/rodinia/doku.php)
 
-1. Checkout llvm, clang, and transpiler
+1. Checkout llvm, clang, and co-optimizer
 	* llvm
-		* ``git clone http://github.com/llvm-mirror/llvm``
+		* ``git clone https://github.com/llvm-mirror/llvm``
 		* ``cd llvm``
 		* ``git checkout release_80``
 
 	* clang
 		* ``cd tools;``
-		* ``git clone http://github.com/llvm-mirror/clang``
+		* ``git clone https://github.com/llvm-mirror/clang``
 		* ``cd clang;``
 		* ``git checkout release_80``
 
-	* transpiler
+	* co-optimizer
 		* ``cd tools``
-		* ``git clone github.com/hjunkim/Transpiler``
+		* ``git clone https://github.com/hjunkim/CO-Optimizer.git``
 
 2. Build them
-	* Add the Transpiler repository to ``llvm/tools/clang/tools/CMakeLists.txt``
-		* ``add_clang_subdirectory(Transpiler)``
+	* Add the CO-Optimizer repository to ``llvm/tools/clang/tools/CMakeLists.txt``
+		* ``add_clang_subdirectory(CO-Optimizer)``
 	* ``cd ../../../../;mkdir build;cd build``
 	* ``cmake -G "Unix Makefiles" ../llvm``
 	* ``make -j 16;sudo make install``
