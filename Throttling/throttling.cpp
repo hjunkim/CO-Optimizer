@@ -356,6 +356,8 @@ class ForStmtHandler : public MatchFinder::MatchCallback {
 				CommonOptionsParser op(argc, argv, MatcherSampleCategory);
 				ClangTool Tool(op.getCompilations(), op.getSourcePathList());
 
+				WARPS_SM = op_nblks * op_blksize;
+
 				PDBG("Thread block size : " + std::to_string(op_blksize) + " warps")
 				PDBG(std::to_string(op_nblks) + " thread blocks per SM is set")
 				PDBG("Cache size: " + std::to_string(op_csize) + "KB")

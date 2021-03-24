@@ -45,7 +45,7 @@ bool isSecCall = false;
 bool isTrdCall = false;
 
 // Throttling -- user defined parameters
-int WARPS_SM = op_blksize*op_nblks;
+int WARPS_SM; // = op_blksize*op_nblks;
 int CACHE_SIZE = op_csize * 1024 / 128; // 1024: KB --> B, 128: cache line size: 128B
 
 // Preloading -- user defined parameters
