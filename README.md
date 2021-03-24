@@ -51,13 +51,8 @@ This is an example work-flow and configuration to get and build the Transpiler.
 	* ``--csize=<int>``               - <csize> : L1 cache size of the GPU (default: 32 KB)
 	* ``--nblks=<int>``               - <nblks> : # of thread blocks per SM (default: 4 blks)
 	* ``--tbsize=<int>``              - <tbsize> : thread block size (default: 8 warps)
-	* ``--extra-arg=<string>``        - Additional argument to append to the compiler command line
-	* ``--extra-arg-before=<string>`` - Additional argument to prepend to the compiler command line
-	* ``-p=<string>``                 - Build path
 
 * Preloading	
 	* ``--prdsize=<string>``          - <prdsize> : set preloading size (default: 1)
 	* ``--tbsize=<string>``           - <tbsize> : set thread block size (default: 8 warps)
-	* ``--extra-arg=<string>``        - Additional argument to append to the compiler command line
-	* ``--extra-arg-before=<string>`` - Additional argument to prepend to the compiler command line
-	* ``-p=<string>``                 - Build path
+
