@@ -230,7 +230,7 @@ public:
 					pr_str += "if ("+iterVar[ArrayVar]+"%"+std::to_string(allocsize)+"==0) {\n";
 					pr_str += "\tfor(int ii=0; ii<"+std::to_string(prdsize)+"; ii++) {\n\t";
 					pr_str += "\tsss["+sharedStore[ArrayVar]+"] = "+arrayBase[ArrayVar];
-					pr_str += "["+globalLoad[ArrayVar]+"];\n}\n\t__syncthreads();\n}\n";
+					pr_str += "["+iterVar[ArrayVar]+"+"+globalLoad[ArrayVar]+"];\n}\n\t__syncthreads();\n}\n";
 					pr_str += "/* preloading code ended...*/\n";
 
 					if (hasCompoundBody)
