@@ -210,7 +210,7 @@ class ForStmtHandler : public MatchFinder::MatchCallback {
 
 						std::string thr_str = "\nint TID = (threadIdx.x+threadIdx.y*blockDim.x+threadIdx.z*blockDim.y*blockDim.x);\nfor(int tt_iter=0; tt_iter<"+std::to_string(tfactor)+"; tt_iter++){\nif (TID/32 >= tt_iter*"+w_limiter+" && TID/32 < (tt_iter+1)*"+w_limiter+") {\n";
 						Rewrite.InsertText(ForLoop->getBeginLoc().getLocWithOffset(-1), "/* throttling start */"+thr_str, true, true);
-						Rewrite.InsertText(ForLoop->getEndLoc().getLocWithOffset(1), "\n} /* throttling end */\n__synchtreads();\n}", true, true);
+						Rewrite.InsertText(ForLoop->getEndLoc().getLocWithOffset(1), "\n} /* throttling end */\n__syncthreads();\n}", true, true);
 					}
 				}
 				}
