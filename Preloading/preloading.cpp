@@ -177,7 +177,7 @@ public:
 										return ;
 									}
 								}
-								sharedStore[ArrayVar] += *tok;
+								// sharedStore[ArrayVar] += *tok;
 								globalLoad[ArrayVar] += *tok;
 								// sharedLoad[ArrayVar] += *tok;
 							}
