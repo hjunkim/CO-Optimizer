@@ -228,6 +228,7 @@ public:
 						pr_str +=  "{\n/* preloading code added (base["+arrayIdx[ArrayVar]+"])...*/\n";
 					
 					pr_str += "if ("+iterVar[ArrayVar]+"%"+std::to_string(allocsize)+"==0) {\n";
+					pr_str += "\t__syncthreads();\n";
 					pr_str += "\tfor(int ii=0; ii<"+std::to_string(prdsize)+"; ii++) {\n\t";
 					pr_str += "\tsss["+sharedStore[ArrayVar]+"] = "+arrayBase[ArrayVar];
 					pr_str += "["+iterVar[ArrayVar]+"+"+globalLoad[ArrayVar]+"];\n}\n\t__syncthreads();\n}\n";
